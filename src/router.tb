@@ -1,0 +1,60 @@
+// TurboServo — Router with path parameter support
+//
+// Path params are extracted by matching registered patterns against request paths.
+// Pattern: "/users/:id/posts/:pid" matches "/users/42/posts/7"
+//
+// Usage:
+//   let params = match_path("/users/:id", "/users/42")
+//   let id = param(params, "id")  // "42"
+
+// Match a pattern against a path, return params as "key=val&key2=val2" string
+// Returns empty string if no match
+fn match_path(pattern: str, path: str) -> str {
+    let pat_parts = split(pattern, "/")
+    let path_parts = split(path, "/")
+
+    if len(pat_parts) != len(path_parts) {
+        return ""
+    }
+
+    let mut params = ""
+    let mut i = 0
+    let matched = true
+
+    for pat_part in pat_parts {
+        let path_part = path_parts[i]
+        if starts_with(pat_part, ":") {
+            // This is a parameter — extract it
+            let key = str_slice(pat_part, 1, len(pat_part))
+            if len(params) > 0 {
+                params = params + "&"
+            }
+            params = params + key + "=" + path_part
+        } else {
+            // Static segment — must match exactly
+            if pat_part != path_part {
+                return ""
+            }
+        }
+        i = i + 1
+    }
+
+    params
+}
+
+// Extract a named parameter from the params string
+fn param(params: str, key: str) -> str {
+    if len(params) == 0 {
+        return ""
+    }
+    let pairs = split(params, "&")
+    for pair in pairs {
+        let kv = split(pair, "=")
+        if len(kv) >= 2 {
+            if kv[0] == key {
+                return kv[1]
+            }
+        }
+    }
+    ""
+}

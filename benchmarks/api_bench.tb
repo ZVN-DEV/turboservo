@@ -1,0 +1,56 @@
+// TurboServo Benchmark — JSON API Server
+// Identical workload to compare against Hono, Go, Actix
+
+import { create, get, post, listen } from "../src/servo"
+import { json, not_found } from "../src/response"
+import { body, query } from "../src/request"
+
+struct User {
+    id: i64,
+    name: str,
+    email: str,
+}
+
+fn main() {
+    let app = create(3000)
+
+    // Endpoint 1: Simple JSON response (baseline throughput)
+    get(app, "/json", |req: str| -> str {
+        json(200, json_stringify("message", "Hello, World!"))
+    })
+
+    // Endpoint 2: Echo back posted JSON (parse + serialize)
+    post(app, "/echo", |req: str| -> str {
+        let b = body(req)
+        json(200, b)
+    })
+
+    // Endpoint 3: In-memory lookup (simulates DB read)
+    get(app, "/user", |req: str| -> str {
+        let id = query(req, "id")
+        if id == "1" {
+            let u = User { id: 1, name: "Alice", email: "alice@example.com" }
+            json(200, to_json(u))
+        } else if id == "2" {
+            let u = User { id: 2, name: "Bob", email: "bob@example.com" }
+            json(200, to_json(u))
+        } else {
+            not_found()
+        }
+    })
+
+    // Endpoint 4: Headers inspection
+    get(app, "/headers", |req: str| -> str {
+        let ua = request_header(req, "User-Agent")
+        let accept = request_header(req, "Accept")
+        json(200, json_stringify("user_agent", ua))
+    })
+
+    print("Benchmark server running on http://localhost:3000")
+    print("Endpoints:")
+    print("  GET  /json     - simple JSON response")
+    print("  POST /echo     - echo posted body")
+    print("  GET  /user?id= - in-memory lookup")
+    print("  GET  /headers  - header inspection")
+    listen(app)
+}

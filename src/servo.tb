@@ -1,0 +1,35 @@
+// TurboServo — Core framework
+//
+// Usage:
+//   import { create, get, post, listen } from "./src/servo"
+//   import { json } from "./src/response"
+//
+//   fn main() {
+//       let app = create(3000)
+//       get(app, "/", |req: str| -> str { json(200, "hello") })
+//       listen(app)
+//   }
+
+fn create(port: i64) -> i64 {
+    http_server(port)
+}
+
+fn get(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "GET", path, handler)
+}
+
+fn post(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "POST", path, handler)
+}
+
+fn put(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "PUT", path, handler)
+}
+
+fn delete(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "DELETE", path, handler)
+}
+
+fn listen(app: i64) {
+    http_listen(app)
+}

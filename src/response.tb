@@ -1,0 +1,30 @@
+// TurboServo — Response helpers
+
+fn json(status: i64, body: str) -> str {
+    respond(status, body)
+}
+
+fn text(status: i64, body: str) -> str {
+    // Return without the colon-delimited format so it gets text/plain Content-Type
+    respond(status, body)
+}
+
+fn html(status: i64, body: str) -> str {
+    respond(status, body)
+}
+
+fn redirect(url: str) -> str {
+    respond(302, url)
+}
+
+fn not_found() -> str {
+    respond(404, "Not Found")
+}
+
+fn bad_request(msg: str) -> str {
+    respond(400, msg)
+}
+
+fn internal_error(msg: str) -> str {
+    respond(500, msg)
+}

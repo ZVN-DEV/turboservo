@@ -1,0 +1,29 @@
+// TurboServo — Hello World Example
+
+import { create, get, listen } from "../../src/servo"
+import { json, text } from "../../src/response"
+import { query } from "../../src/request"
+
+fn main() {
+    let app = create(3000)
+
+    get(app, "/", |req: str| -> str {
+        text(200, "Hello from TurboServo!")
+    })
+
+    get(app, "/json", |req: str| -> str {
+        json(200, json_stringify("message", "Hello, World!"))
+    })
+
+    get(app, "/greet", |req: str| -> str {
+        let name = query(req, "name")
+        if len(name) > 0 {
+            json(200, json_stringify("greeting", "Hello, " + name + "!"))
+        } else {
+            json(200, json_stringify("greeting", "Hello, stranger!"))
+        }
+    })
+
+    print("TurboServo running on http://localhost:3000")
+    listen(app)
+}

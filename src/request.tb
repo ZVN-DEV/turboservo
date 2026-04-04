@@ -1,0 +1,32 @@
+// TurboServo — Request helpers
+
+fn method(req: str) -> str {
+    request_method(req)
+}
+
+fn path(req: str) -> str {
+    request_path(req)
+}
+
+fn body(req: str) -> str {
+    request_body(req)
+}
+
+fn query(req: str, key: str) -> str {
+    request_query(req, key)
+}
+
+fn header(req: str, name: str) -> str {
+    request_header(req, name)
+}
+
+// Check if a query parameter exists (non-empty)
+fn has_query(req: str, key: str) -> bool {
+    let val = request_query(req, key)
+    len(val) > 0
+}
+
+// Get Content-Type header shorthand
+fn content_type(req: str) -> str {
+    request_header(req, "Content-Type")
+}
