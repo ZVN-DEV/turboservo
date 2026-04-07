@@ -34,7 +34,7 @@ fn main() {
 turbolang run examples/hello/main.tb
 ```
 
-## Features (v0.0.1)
+## Features (v0.5.1)
 
 - HTTP server with route registration (GET, POST, PUT, DELETE)
 - Request context: method, path, headers, query params, body
