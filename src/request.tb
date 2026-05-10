@@ -132,6 +132,7 @@ fn digit_to_i64(ch: str, acc: i64) -> i64 {
 
 fn url_decode(value: str) -> str {
     let mut decoded = replace(value, "+", " ")
+    decoded = replace(decoded, "%20", " ")
     decoded = replace(decoded, "%0A", "\n")
     decoded = replace(decoded, "%0D", "")
     decoded = replace(decoded, "%2C", ",")
@@ -147,5 +148,6 @@ fn url_decode(value: str) -> str {
     decoded = replace(decoded, "%5D", "]")
     decoded = replace(decoded, "%7B", "\{")
     decoded = replace(decoded, "%7D", "\}")
+    decoded = replace(decoded, "%25", "%")
     decoded
 }
