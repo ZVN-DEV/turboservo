@@ -46,7 +46,7 @@ fn init_search_data() -> i64 {
                 hashmap_set(db, key_price, to_str(price))
                 hashmap_set(db, key_rating, to_str(rating))
 
-                idx = idx + 1
+                idx += 1
             }
         }
     }
@@ -68,12 +68,12 @@ fn relevance_score(name: str, desc: str, query: str) -> i64 {
 
     // Exact match in name = high score
     if contains(name_lower, query_lower) {
-        score = score + 100
+        score += 100
     }
 
     // Match in description = medium score
     if contains(desc_lower, query_lower) {
-        score = score + 50
+        score += 50
     }
 
     // Fuzzy: check each word of the query
@@ -81,17 +81,17 @@ fn relevance_score(name: str, desc: str, query: str) -> i64 {
     for word in query_words {
         if len(word) > 0 {
             if contains(name_lower, word) {
-                score = score + 30
+                score += 30
             }
             if contains(desc_lower, word) {
-                score = score + 10
+                score += 10
             }
         }
     }
 
     // Starts-with bonus
     if starts_with(name_lower, query_lower) {
-        score = score + 50
+        score += 50
     }
 
     score
@@ -176,7 +176,7 @@ fn search_payload(payload: str, db: i64) -> str {
                     result_scores = push(result_scores, score)
                     result_indices = push(result_indices, i)
                 }
-                result_count = result_count + 1
+                result_count += 1
             }
         }
     }
@@ -216,16 +216,16 @@ fn search_payload(payload: str, db: i64) -> str {
             if first {
                 first = false
             } else {
-                results_json = results_json + ","
+                results_json += ","
             }
-            results_json = results_json + "\{\"name\":\"" + name
+            results_json += "\{\"name\":\"" + name
             + "\",\"category\":\"" + cat
             + "\",\"price\":" + price
             + ",\"rating\":" + rating
             + ",\"relevance\":" + to_str(score) + "\}"
         }
     }
-    results_json = results_json + "]"
+    results_json += "]"
 
     let result = "\{\"query\":\"" + query
     + "\",\"total_matches\":" + to_str(result_count)

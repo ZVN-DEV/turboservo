@@ -89,7 +89,7 @@ fn analyze_payload(payload: str) -> str {
             } else {
                 data = push(data, val)
             }
-            data_idx = data_idx + 1
+            data_idx += 1
         }
     }
 
@@ -103,7 +103,7 @@ fn analyze_payload(payload: str) -> str {
     // Sum and mean
     let mut sum = 0
     for i in 0..count {
-        sum = sum + data[i]
+        sum += data[i]
     }
     let mean = sum / count
 
@@ -123,7 +123,7 @@ fn analyze_payload(payload: str) -> str {
     let mut variance_sum = 0
     for i in 0..count {
         let diff = data[i] - mean
-        variance_sum = variance_sum + diff * diff
+        variance_sum += diff * diff
     }
     let variance = variance_sum / count
     let stddev = isqrt(variance)
@@ -166,17 +166,17 @@ fn analyze_payload(payload: str) -> str {
         if bin_idx < 0 {
             bin_idx = 0
         }
-        bins[bin_idx] = bins[bin_idx] + 1
+        bins[bin_idx] += 1
     }
 
     let mut hist_str = "["
     for i in 0..10 {
         if i > 0 {
-            hist_str = hist_str + ","
+            hist_str += ","
         }
-        hist_str = hist_str + to_str(bins[i])
+        hist_str += to_str(bins[i])
     }
-    hist_str = hist_str + "]"
+    hist_str += "]"
 
     // Outlier detection — values beyond 2 * stddev from mean
     let mut outlier_count = 0
@@ -184,7 +184,7 @@ fn analyze_payload(payload: str) -> str {
     for i in 0..count {
         let diff = abs(data[i] - mean)
         if diff > threshold {
-            outlier_count = outlier_count + 1
+            outlier_count += 1
         }
     }
 

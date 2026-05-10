@@ -53,7 +53,7 @@ fn pipeline_payload(payload: str) -> str {
             } else {
                 data = push(data, val)
             }
-            data_len = data_len + 1
+            data_len += 1
         }
     }
 
@@ -86,7 +86,7 @@ fn pipeline_payload(payload: str) -> str {
                                     } else {
                                         new_data = push(new_data, data[i])
                                     }
-                                    new_len = new_len + 1
+                                    new_len += 1
                                 }
                             }
                             data = new_data
@@ -101,7 +101,7 @@ fn pipeline_payload(payload: str) -> str {
                                     } else {
                                         new_data = push(new_data, data[i])
                                     }
-                                    new_len = new_len + 1
+                                    new_len += 1
                                 }
                             }
                             data = new_data
@@ -118,7 +118,7 @@ fn pipeline_payload(payload: str) -> str {
                                         } else {
                                             new_data = push(new_data, data[i])
                                         }
-                                        new_len = new_len + 1
+                                        new_len += 1
                                     }
                                 }
                                 data = new_data
@@ -136,7 +136,7 @@ fn pipeline_payload(payload: str) -> str {
                                         } else {
                                             new_data = push(new_data, data[i])
                                         }
-                                        new_len = new_len + 1
+                                        new_len += 1
                                     }
                                 }
                                 data = new_data
@@ -163,7 +163,7 @@ fn pipeline_payload(payload: str) -> str {
                             if len(stage_parts) >= 3 {
                                 let addend = parse_int_str(stage_parts[2])
                                 for i in 0..data_len {
-                                    data[i] = data[i] + addend
+                                    data[i] += addend
                                 }
                             }
                         }
@@ -196,7 +196,7 @@ fn pipeline_payload(payload: str) -> str {
                         if reduce_type == "sum" {
                             let mut s = 0
                             for i in 0..data_len {
-                                s = s + data[i]
+                                s += data[i]
                             }
                             reduced_value = s
                             is_reduced = true
@@ -246,7 +246,7 @@ fn pipeline_payload(payload: str) -> str {
                             } else {
                                 new_data = push(new_data, data[i])
                             }
-                            new_len = new_len + 1
+                            new_len += 1
                         }
                     }
                     data = new_data
@@ -258,7 +258,7 @@ fn pipeline_payload(payload: str) -> str {
                         let tmp = data[i]
                         data[i] = data[j]
                         data[j] = tmp
-                        i = i + 1
+                        i += 1
                         j = j - 1
                     }
                 } else if stage_type == "take" {
@@ -272,38 +272,38 @@ fn pipeline_payload(payload: str) -> str {
 
                 // Record stage info
                 if stage_count > 0 {
-                    stages_json = stages_json + ","
+                    stages_json += ","
                 }
-                stages_json = stages_json + "\{\"stage\":\"" + stage_def
+                stages_json += "\{\"stage\":\"" + stage_def
                 + "\",\"input_count\":" + to_str(before_count)
                 + ",\"output_count\":" + to_str(data_len) + "\}"
-                stage_count = stage_count + 1
+                stage_count += 1
             }
         }
-        line_idx = line_idx + 1
+        line_idx += 1
     }
-    stages_json = stages_json + "]"
+    stages_json += "]"
 
     // Build output data array
     let mut output_json = "["
     let output_limit = min(data_len, 100)
     for i in 0..output_limit {
         if i > 0 {
-            output_json = output_json + ","
+            output_json += ","
         }
-        output_json = output_json + to_str(data[i])
+        output_json += to_str(data[i])
     }
-    output_json = output_json + "]"
+    output_json += "]"
 
     let mut result = "\{\"stages\":" + stages_json
     + ",\"stage_count\":" + to_str(stage_count)
     + ",\"output_count\":" + to_str(data_len)
 
     if is_reduced {
-        result = result + ",\"reduced_value\":" + to_str(reduced_value)
+        result += ",\"reduced_value\":" + to_str(reduced_value)
     }
 
-    result = result + ",\"output\":" + output_json + "\}"
+    result += ",\"output\":" + output_json + "\}"
 
     result
 }
