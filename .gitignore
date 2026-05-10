@@ -1,3 +1,4 @@
 node_modules/
 bun.lock
 .omx/
+.turbolang-0.8.2
