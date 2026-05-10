@@ -216,16 +216,16 @@ fn search_payload(payload: str, db: i64) -> str {
             if first {
                 first = false
             } else {
-                results_json += ","
+                results_json = results_json + ","
             }
-            results_json += "\{\"name\":\"" + name
+            results_json = results_json + "\{\"name\":\"" + name
             + "\",\"category\":\"" + cat
             + "\",\"price\":" + price
             + ",\"rating\":" + rating
             + ",\"relevance\":" + to_str(score) + "\}"
         }
     }
-    results_json += "]"
+    results_json = results_json + "]"
 
     let result = "\{\"query\":\"" + query
     + "\",\"total_matches\":" + to_str(result_count)

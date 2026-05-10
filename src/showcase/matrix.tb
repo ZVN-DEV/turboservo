@@ -84,18 +84,18 @@ fn matrix_to_json(m: [i64], n: i64) -> str {
     let mut result = "["
     for i in 0..n {
         if i > 0 {
-            result += ","
+            result = result + ","
         }
-        result += "["
+        result = result + "["
         for j in 0..n {
             if j > 0 {
-                result += ","
+                result = result + ","
             }
-            result += to_str(m[i * n + j])
+            result = result + to_str(m[i * n + j])
         }
-        result += "]"
+        result = result + "]"
     }
-    result += "]"
+    result = result + "]"
     result
 }
 

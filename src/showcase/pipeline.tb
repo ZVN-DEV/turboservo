@@ -163,7 +163,7 @@ fn pipeline_payload(payload: str) -> str {
                             if len(stage_parts) >= 3 {
                                 let addend = parse_int_str(stage_parts[2])
                                 for i in 0..data_len {
-                                    data[i] += addend
+                                    data[i] = data[i] + addend
                                 }
                             }
                         }
@@ -272,9 +272,9 @@ fn pipeline_payload(payload: str) -> str {
 
                 // Record stage info
                 if stage_count > 0 {
-                    stages_json += ","
+                    stages_json = stages_json + ","
                 }
-                stages_json += "\{\"stage\":\"" + stage_def
+                stages_json = stages_json + "\{\"stage\":\"" + stage_def
                 + "\",\"input_count\":" + to_str(before_count)
                 + ",\"output_count\":" + to_str(data_len) + "\}"
                 stage_count += 1
@@ -282,28 +282,28 @@ fn pipeline_payload(payload: str) -> str {
         }
         line_idx += 1
     }
-    stages_json += "]"
+    stages_json = stages_json + "]"
 
     // Build output data array
     let mut output_json = "["
     let output_limit = min(data_len, 100)
     for i in 0..output_limit {
         if i > 0 {
-            output_json += ","
+            output_json = output_json + ","
         }
-        output_json += to_str(data[i])
+        output_json = output_json + to_str(data[i])
     }
-    output_json += "]"
+    output_json = output_json + "]"
 
     let mut result = "\{\"stages\":" + stages_json
     + ",\"stage_count\":" + to_str(stage_count)
     + ",\"output_count\":" + to_str(data_len)
 
     if is_reduced {
-        result += ",\"reduced_value\":" + to_str(reduced_value)
+        result = result + ",\"reduced_value\":" + to_str(reduced_value)
     }
 
-    result += ",\"output\":" + output_json + "\}"
+    result = result + ",\"output\":" + output_json + "\}"
 
     result
 }

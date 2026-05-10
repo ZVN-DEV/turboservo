@@ -166,17 +166,17 @@ fn analyze_payload(payload: str) -> str {
         if bin_idx < 0 {
             bin_idx = 0
         }
-        bins[bin_idx] += 1
+        bins[bin_idx] = bins[bin_idx] + 1
     }
 
     let mut hist_str = "["
     for i in 0..10 {
         if i > 0 {
-            hist_str += ","
+            hist_str = hist_str + ","
         }
-        hist_str += to_str(bins[i])
+        hist_str = hist_str + to_str(bins[i])
     }
-    hist_str += "]"
+    hist_str = hist_str + "]"
 
     // Outlier detection — values beyond 2 * stddev from mean
     let mut outlier_count = 0

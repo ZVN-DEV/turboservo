@@ -149,12 +149,12 @@ fn handle_transform(req: str) -> str {
         if cat_first {
             cat_first = false
         } else {
-            cat_json += ","
+            cat_json = cat_json + ","
         }
         let cat_sum = hashmap_get(category_map, ck)
-        cat_json += "\{\"category\":\"" + ck + "\",\"total\":" + cat_sum + "\}"
+        cat_json = cat_json + "\{\"category\":\"" + ck + "\",\"total\":" + cat_sum + "\}"
     }
-    cat_json += "]"
+    cat_json = cat_json + "]"
 
     // Stage 6: Paginate — return top 20 sorted records
     let page_size = min(20, n)
@@ -164,13 +164,13 @@ fn handle_transform(req: str) -> str {
         if first {
             first = false
         } else {
-            page_items += ","
+            page_items = page_items + ","
         }
-        page_items += "\{\"name\":\"" + sorted_names[i]
+        page_items = page_items + "\{\"name\":\"" + sorted_names[i]
         + "\",\"value\":" + to_str(sorted_values[i])
         + ",\"category\":\"" + sorted_cats[i] + "\"\}"
     }
-    page_items += "]"
+    page_items = page_items + "]"
 
     // Compute mean
     let mut mean = 0
