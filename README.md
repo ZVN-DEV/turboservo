@@ -34,11 +34,15 @@ fn main() {
 turbolang run examples/hello/main.tb
 ```
 
-## Features (v0.7.6)
+## Features (v0.8.2)
 
-- HTTP server with route registration (GET, POST, PUT, DELETE)
+- HTTP server with route registration (GET, POST, PUT, DELETE, PATCH, OPTIONS)
+- `create_public()` for production deployment — binds to 0.0.0.0 instead of localhost
+- CORS preflight helper — explicit opt-in since Turbo 0.8.2 is secure-by-default (no wildcard CORS)
+- Runtime header limit protection (8 KB/line, 64 KB total, 32 MB body) enforced by Turbo 0.8.2
 - Request context: method, path, headers, query params, body
-- Explicit JSON/text/HTML response helpers aligned to Turbo Lang 0.7.6
+- Explicit JSON/text/HTML response helpers aligned to Turbo Lang 0.8.2
+- 401/403/405 response helpers for auth and method-not-allowed flows
 - Typed query/form parsing helpers for real request handling
 - Path parameter extraction via router module
 - Browser-facing hosted demo with live in-memory state
@@ -49,11 +53,14 @@ turbolang run examples/hello/main.tb
 ## API
 
 ### Server (`src/servo.tb`)
-- `create(port: i64) -> i64` -- create server on port
+- `create(port: i64) -> i64` -- create server on localhost (dev)
+- `create_public(port: i64) -> i64` -- create server on 0.0.0.0 (production)
 - `get(app, path, handler)` -- register GET route
 - `post(app, path, handler)` -- register POST route
 - `put(app, path, handler)` -- register PUT route
 - `delete(app, path, handler)` -- register DELETE route
+- `patch(app, path, handler)` -- register PATCH route
+- `options(app, path, handler)` -- register OPTIONS route (use with CORS preflight helper)
 - `listen(app)` -- start server (blocks)
 
 ### Request (`src/request.tb`)
@@ -76,6 +83,10 @@ turbolang run examples/hello/main.tb
 - `no_content() -> str` -- 204 empty response
 - `not_found() -> str` -- 404 response
 - `bad_request(msg) -> str` -- 400 response
+- `unauthorized(msg) -> str` -- 401 response
+- `forbidden(msg) -> str` -- 403 response
+- `method_not_allowed() -> str` -- 405 response
+- `cors_preflight(origin) -> str` -- CORS preflight 204 response (explicit opt-in required since v0.8.2)
 
 ### Router (`src/router.tb`)
 - `match_path(pattern, path) -> str` -- match with params
