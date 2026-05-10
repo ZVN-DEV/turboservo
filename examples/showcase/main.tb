@@ -1,0 +1,452 @@
+// TurboServo Hosted Demo Showcase
+//
+// A browser-facing reference app for TurboLang on the server.
+// Shows:
+//   - SSR HTML landing page
+//   - live server-owned state
+//   - fragment-driven progressive enhancement
+//   - JSON APIs and compute endpoints
+//   - concurrent compute arena demo
+
+import { create, get, post, listen } from "../../src/servo"
+
+import { html, json, no_content } from "../../src/response"
+
+import { parse_i64 } from "../../src/request"
+
+import { handle_transform } from "../../src/showcase/transform"
+
+import { handle_analyze, isqrt } from "../../src/showcase/analyze"
+
+import { init_search_data, handle_search, relevance_score } from "../../src/showcase/search"
+
+import { handle_matrix } from "../../src/showcase/matrix"
+
+import { handle_pipeline } from "../../src/showcase/pipeline"
+
+fn configured_port(fallback: i64) -> i64 {
+    let raw = trim(env_get("PORT"))
+    if len(raw) == 0 {
+        return fallback
+    }
+
+    let parsed = parse_i64(raw)
+    if parsed > 0 {
+        parsed
+    } else {
+        fallback
+    }
+}
+
+fn increment(counter: i64) -> i64 {
+    let next = mutex_get(counter) + 1
+    mutex_set(counter, next)
+    next
+}
+
+fn set_counter(counter: i64, value: i64) {
+    mutex_set(counter, value)
+}
+
+fn route_hit(total_requests: i64, route_counter: i64) {
+    increment(total_requests)
+    increment(route_counter)
+}
+
+fn fragment_hit(total_requests: i64, fragment_counter: i64, route_counter: i64) {
+    increment(total_requests)
+    increment(fragment_counter)
+    increment(route_counter)
+}
+
+fn html_escape(value: str) -> str {
+    let mut escaped = replace(value, "&", "&amp;")
+    escaped = replace(escaped, "<", "&lt;")
+    escaped = replace(escaped, ">", "&gt;")
+    escaped = replace(escaped, "\"", "&quot;")
+    escaped
+}
+
+fn winner_label(code: i64) -> str {
+    if code == 1 {
+        "Stats Sweep"
+    } else if code == 2 {
+        "Search Scorer"
+    } else if code == 3 {
+        "Loop Burst"
+    } else {
+        "No arena run yet"
+    }
+}
+
+fn stat_tile(label: str, value: str, note: str) -> str {
+    "<div class=\"stat\"><div class=\"stat-label\">" + label
+    + "</div><div class=\"stat-value\">" + value
+    + "</div><div class=\"stat-note\">" + note + "</div></div>"
+}
+
+fn render_status_fragment(page_views: i64, total_requests: i64, fragment_requests: i64, active_jobs: i64) -> str {
+    let page_views_html = stat_tile("Page views", to_str(mutex_get(page_views)), "SSR requests to the landing page")
+    let total_html = stat_tile("Total requests", to_str(mutex_get(total_requests)), "Every route and fragment hit")
+    let fragment_html = stat_tile("Fragment refreshes", to_str(mutex_get(fragment_requests)), "Server-rendered partial updates")
+    let jobs_html = stat_tile("Active jobs", to_str(mutex_get(active_jobs)), "Arena work currently executing on the server")
+
+    "<div class=\"panel-card\"><div class=\"panel-head\"><h3>Live status</h3><p>These numbers live inside the Turbo server process.</p></div><div class=\"stats-grid\">"
+    + page_views_html + total_html + fragment_html + jobs_html + "</div></div>"
+}
+
+fn render_memory_fragment(health_hits: i64, analyze_hits: i64, search_hits: i64, matrix_hits: i64, pipeline_hits: i64, arena_runs: i64, last_winner: i64) -> str {
+    let health_html = stat_tile("Health checks", to_str(mutex_get(health_hits)), "Infrastructure / uptime probes")
+    let analyze_html = stat_tile("Analyze runs", to_str(mutex_get(analyze_hits)), "Stats payloads generated on the server")
+    let search_html = stat_tile("Search runs", to_str(mutex_get(search_hits)), "Ranked in-memory product search")
+    let matrix_html = stat_tile("Matrix runs", to_str(mutex_get(matrix_hits)), "Native nested-loop compute")
+    let pipeline_html = stat_tile("Pipeline runs", to_str(mutex_get(pipeline_hits)), "Transform chains completed")
+    let arena_html = stat_tile("Arena runs", to_str(mutex_get(arena_runs)), winner_label(mutex_get(last_winner)))
+
+    "<div class=\"panel-card\"><div class=\"panel-head\"><h3>Server memory board</h3><p>Turbo keeps a live in-memory scoreboard without a database.</p></div><div class=\"stats-grid\">"
+    + health_html + analyze_html + search_html + matrix_html + pipeline_html + arena_html + "</div></div>"
+}
+
+fn render_result_fragment(title: str, summary: str, payload: str) -> str {
+    "<div class=\"result-card\"><div class=\"result-head\"><h4>" + title
+    + "</h4><p>" + summary + "</p></div><pre>" + payload + "</pre></div>"
+}
+
+fn render_empty_fragment(title: str, summary: str) -> str {
+    "<div class=\"result-card empty\"><div class=\"result-head\"><h4>" + title
+    + "</h4><p>" + summary + "</p></div><pre>Waiting for a server-rendered result...</pre></div>"
+}
+
+fn arena_job_stats() -> i64 {
+    let mut total = 0
+    for i in 1..220 {
+        let distance = i - 110
+        total = total + abs(distance * distance)
+    }
+    isqrt(total)
+}
+
+fn arena_job_search() -> i64 {
+    let mut score = 0
+    for i in 0..120 {
+        score = score
+        + relevance_score("Turbo compiles to native code for server workloads", "native reactive server compute", "server native")
+        + relevance_score("Turbo keeps HTML rendering close to the compute layer", "origin rendered fragments", "server native")
+        + i
+    }
+    score
+}
+
+fn arena_job_loop() -> i64 {
+    let mut total = 0
+    for i in 1..240 {
+        for j in 1..90 {
+            total = total + ((i * 7 + j * 3) % 19)
+        }
+    }
+    total
+}
+
+fn arena_first(stats_score: i64, search_score: i64, loop_score: i64) -> i64 {
+    let mut winner = 1
+    let mut best = stats_score
+    if search_score > best {
+        winner = 2
+        best = search_score
+    }
+    if loop_score > best {
+        winner = 3
+    }
+    winner
+}
+
+fn arena_second(stats_score: i64, search_score: i64, loop_score: i64) -> i64 {
+    let first = arena_first(stats_score, search_score, loop_score)
+    if first == 1 {
+        if search_score > loop_score { 2 } else { 3 }
+    } else if first == 2 {
+        if stats_score > loop_score { 1 } else { 3 }
+    } else {
+        if stats_score > search_score { 1 } else { 2 }
+    }
+}
+
+fn arena_third(stats_score: i64, search_score: i64, loop_score: i64) -> i64 {
+    let first = arena_first(stats_score, search_score, loop_score)
+    let second = arena_second(stats_score, search_score, loop_score)
+    if first != 1 && second != 1 {
+        1
+    } else if first != 2 && second != 2 {
+        2
+    } else {
+        3
+    }
+}
+
+fn render_arena_fragment(first: i64, second: i64, third: i64, stats_score: i64, search_score: i64, loop_score: i64) -> str {
+    let order = winner_label(first) + " → " + winner_label(second) + " → " + winner_label(third)
+    let payload = "winner=" + winner_label(first)
+    + "\ncompletion_order=" + order
+    + "\nstats_score=" + to_str(stats_score)
+    + "\nsearch_score=" + to_str(search_score)
+    + "\nloop_score=" + to_str(loop_score)
+    render_result_fragment(
+    "Compute Arena",
+    "Turbo computes three different workloads in one request and ranks them server-side.",
+    payload
+    )
+}
+
+fn build_css() -> str {
+    "body \{ margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: radial-gradient(circle at top, #16213d 0%, #08101f 42%, #050914 100%); color: #e6edf8; \}"
+    + "a \{ color: #93c5fd; text-decoration: none; \}"
+    + "a:hover \{ text-decoration: underline; \}"
+    + ".wrap \{ max-width: 1220px; margin: 0 auto; padding: 32px 20px 80px; \}"
+    + ".hero \{ display: grid; gap: 18px; padding: 36px 0 20px; \}"
+    + ".hero h1 \{ margin: 0; font-size: 54px; line-height: 1.02; max-width: 900px; \}"
+    + ".hero p \{ margin: 0; color: #b8c6dd; font-size: 18px; line-height: 1.7; max-width: 820px; \}"
+    + ".chips \{ display: flex; gap: 12px; flex-wrap: wrap; \}"
+    + ".chip \{ border: 1px solid #29406d; background: rgba(12, 23, 46, 0.7); border-radius: 999px; padding: 9px 14px; color: #bfdbfe; font-size: 14px; \}"
+    + ".cta-row \{ display: flex; gap: 12px; flex-wrap: wrap; padding-top: 8px; \}"
+    + ".cta \{ display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; padding: 12px 16px; font-weight: 700; border: 1px solid #35548c; background: #2563eb; color: white; \}"
+    + ".cta.secondary \{ background: transparent; color: #dbeafe; \}"
+    + ".two-up \{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin: 28px 0; \}"
+    + ".panel-card \{ background: rgba(8, 16, 31, 0.82); border: 1px solid #23385e; border-radius: 22px; padding: 20px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22); \}"
+    + ".panel-head h3 \{ margin: 0 0 6px; font-size: 22px; \}"
+    + ".panel-head p \{ margin: 0 0 18px; color: #a7b9d6; line-height: 1.6; \}"
+    + ".stats-grid \{ display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; \}"
+    + ".stat \{ background: rgba(19, 31, 59, 0.82); border: 1px solid #29406d; border-radius: 16px; padding: 14px; \}"
+    + ".stat-label \{ color: #8ba7cf; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; \}"
+    + ".stat-value \{ font-size: 28px; font-weight: 800; margin: 8px 0 6px; \}"
+    + ".stat-note \{ color: #b7c5dc; font-size: 13px; line-height: 1.45; \}"
+    + ".feature-grid \{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 26px 0 10px; \}"
+    + ".feature \{ background: rgba(10, 18, 35, 0.82); border: 1px solid #22375b; border-radius: 18px; padding: 18px; \}"
+    + ".feature h3 \{ margin: 0 0 10px; font-size: 19px; \}"
+    + ".feature p \{ margin: 0; color: #b8c6dd; line-height: 1.6; font-size: 14px; \}"
+    + ".demo-grid \{ display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; margin: 26px 0; \}"
+    + ".demo-card \{ background: rgba(7, 14, 28, 0.88); border: 1px solid #22375b; border-radius: 22px; padding: 18px; display: grid; gap: 16px; \}"
+    + ".demo-card h3 \{ margin: 0 0 6px; font-size: 22px; \}"
+    + ".demo-card p \{ margin: 0; color: #b8c6dd; line-height: 1.6; font-size: 14px; \}"
+    + ".demo-form \{ display: grid; gap: 10px; \}"
+    + ".demo-form label \{ display: grid; gap: 6px; color: #dce8fb; font-size: 14px; font-weight: 600; \}"
+    + ".demo-form textarea, .demo-form input, .demo-form select \{ width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid #2c4470; background: #08111f; color: #eef4ff; padding: 12px; font: inherit; \}"
+    + ".demo-form textarea \{ min-height: 120px; resize: vertical; \}"
+    + ".form-row \{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; \}"
+    + ".demo-form button \{ border: 0; border-radius: 12px; padding: 12px 14px; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; \}"
+    + ".demo-form button.ghost \{ background: transparent; border: 1px solid #3b5f9f; \}"
+    + ".result-card \{ background: rgba(4, 9, 18, 0.82); border: 1px solid #203357; border-radius: 18px; padding: 16px; min-height: 170px; \}"
+    + ".result-card.empty \{ border-style: dashed; \}"
+    + ".result-head h4 \{ margin: 0 0 6px; font-size: 18px; \}"
+    + ".result-head p \{ margin: 0 0 12px; color: #9fb3d6; font-size: 14px; line-height: 1.6; \}"
+    + "pre \{ margin: 0; white-space: pre-wrap; word-break: break-word; color: #dbeafe; font-size: 13px; line-height: 1.55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; \}"
+    + ".footer-links \{ display: flex; gap: 14px; flex-wrap: wrap; margin-top: 24px; color: #b8c6dd; font-size: 14px; \}"
+}
+
+fn build_js() -> str {
+    "function escapeHtml(value) \{ return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); \}"
+    + "function renderJsonResult(title, summary, payload) \{ return '<div class=\"result-card\"><div class=\"result-head\"><h4>' + title + '</h4><p>' + summary + '</p></div><pre>' + escapeHtml(payload) + '</pre></div>'; \}"
+    + "async function loadFragment(url, targetId, method, formId) \{"
+    + " const target = document.getElementById(targetId);"
+    + " if (target) target.innerHTML = '<div class=\"result-card\"><div class=\"result-head\"><h4>Loading…</h4><p>Turbo is rendering this on the server.</p></div><pre>Please wait...</pre></div>';"
+    + " const options = \{ method: method || 'GET' \};"
+    + " if (method === 'POST' && formId) \{ const form = document.getElementById(formId); options.headers = \{ 'Content-Type': 'application/x-www-form-urlencoded' \}; options.body = new URLSearchParams(new FormData(form)).toString(); \}"
+    + " const res = await fetch(url, options);"
+    + " const text = await res.text();"
+    + " if (target) target.innerHTML = text;"
+    + " refreshPanels();"
+    + " return false;"
+    + "}"
+    + "function submitFragment(event, url, formId, targetId) \{ event.preventDefault(); loadFragment(url, targetId, 'POST', formId); return false; \}"
+    + "async function runAnalyze(event) \{ event.preventDefault(); const body = document.getElementById('analyze-input').value; const res = await fetch('/analyze', \{ method: 'POST', headers: \{ 'Content-Type': 'text/plain' \}, body \}); const text = await res.text(); document.getElementById('analyze-result').innerHTML = renderJsonResult('Statistical Analysis', 'Raw JSON returned by Turbo after server-side analysis.', text); refreshPanels(); return false; \}"
+    + "async function runSearch(event) \{ event.preventDefault(); const query = document.getElementById('search-query').value; const category = document.getElementById('search-category').value; const page = document.getElementById('search-page').value; const limit = document.getElementById('search-limit').value; const minPrice = document.getElementById('search-min').value; const maxPrice = document.getElementById('search-max').value; const body = 'query=' + query + '&category=' + category + '&page=' + page + '&limit=' + limit + '&min_price=' + minPrice + '&max_price=' + maxPrice; const res = await fetch('/search', \{ method: 'POST', headers: \{ 'Content-Type': 'text/plain' \}, body \}); const text = await res.text(); document.getElementById('search-result').innerHTML = renderJsonResult('In-memory Search', 'Turbo ranked and filtered this dataset on the server.', text); refreshPanels(); return false; \}"
+    + "async function runPipeline(event) \{ event.preventDefault(); const body = document.getElementById('pipeline-input').value; const res = await fetch('/pipeline', \{ method: 'POST', headers: \{ 'Content-Type': 'text/plain' \}, body \}); const text = await res.text(); document.getElementById('pipeline-result').innerHTML = renderJsonResult('Pipeline Builder', 'Server-owned transform chain returned directly from Turbo.', text); refreshPanels(); return false; \}"
+    + "async function runMatrix(event) \{ event.preventDefault(); const size = document.getElementById('matrix-size').value; const op = document.getElementById('matrix-op').value; const res = await fetch('/matrix?size=' + size + '&op=' + op); const text = await res.text(); document.getElementById('matrix-result').innerHTML = renderJsonResult('Matrix Compute', 'Turbo handled this matrix request as a native server endpoint.', text); refreshPanels(); return false; \}"
+    + "async function refreshPanels() \{"
+    + " const status = await fetch('/fragment/status'); document.getElementById('live-status').innerHTML = await status.text();"
+    + " const memory = await fetch('/fragment/memory'); document.getElementById('memory-board').innerHTML = await memory.text();"
+    + "}"
+    + "window.addEventListener('load', () => \{ refreshPanels(); window.setInterval(refreshPanels, 4000); \});"
+}
+
+fn demo_card(title: str, intro: str, form_html: str, result_html: str) -> str {
+    "<section class=\"demo-card\"><div><h3>" + title + "</h3><p>" + intro + "</p></div>"
+    + form_html + result_html + "</section>"
+}
+
+fn build_page(port: i64, status_html: str, memory_html: str, analyze_html: str, search_html: str, pipeline_html: str, matrix_html: str, arena_html: str) -> str {
+    let css = build_css()
+    let js = build_js()
+
+    let analyze_form = "<form id=\"analyze-form\" class=\"demo-form\" onsubmit=\"return runAnalyze(event)\"><label>Numbers<textarea id=\"analyze-input\">1,2,3,4,5,6,7,8,9,10,10,11,12,14,18,21,21,21,34</textarea></label><button type=\"submit\">Run server analysis</button></form>"
+    let search_form = "<form id=\"search-form\" class=\"demo-form\" onsubmit=\"return runSearch(event)\"><label>Query<input id=\"search-query\" value=\"premium\"></label><div class=\"form-row\"><label>Category<select id=\"search-category\"><option value=\"electronics\">electronics</option><option value=\"books\">books</option><option value=\"home\">home</option></select></label><label>Page<input id=\"search-page\" value=\"2\"></label></div><div class=\"form-row\"><label>Limit<input id=\"search-limit\" value=\"5\"></label><label>Min price<input id=\"search-min\" value=\"50\"></label></div><label>Max price<input id=\"search-max\" value=\"300\"></label><button type=\"submit\">Search on the server</button></form>"
+    let pipeline_form = "<form id=\"pipeline-form\" class=\"demo-form\" onsubmit=\"return runPipeline(event)\"><label>Dataset + pipeline<textarea id=\"pipeline-input\">1,2,2,3,4,5,6\nunique\nmap:square\nreduce:product</textarea></label><button type=\"submit\">Run pipeline</button></form>"
+    let matrix_form = "<form id=\"matrix-form\" class=\"demo-form\" onsubmit=\"return runMatrix(event)\"><div class=\"form-row\"><label>Matrix size<input id=\"matrix-size\" value=\"18\"></label><label>Operation<select id=\"matrix-op\"><option value=\"multiply\">multiply</option><option value=\"transpose\">transpose</option><option value=\"trace\">trace</option></select></label></div><button type=\"submit\">Run native matrix work</button></form>"
+    let arena_form = "<form id=\"arena-form\" class=\"demo-form\" onsubmit=\"return submitFragment(event, '/fragment/arena', 'arena-form', 'arena-result')\"><p>Run three server-side workloads and let Turbo rank them by their resulting score footprint.</p><button type=\"submit\">Run Compute Arena</button></form>"
+
+    let analyze_card = demo_card("Statistical Analysis", "HTML-first interface, server-owned math, and a result fragment rendered on the origin.", analyze_form, "<div id=\"analyze-result\">" + analyze_html + "</div>")
+    let search_card = demo_card("In-memory Search", "Query a live dataset without shipping ranking logic into the browser.", search_form, "<div id=\"search-result\">" + search_html + "</div>")
+    let pipeline_card = demo_card("Pipeline Builder", "Submit a transform chain and let Turbo compute the result on the server.", pipeline_form, "<div id=\"pipeline-result\">" + pipeline_html + "</div>")
+    let matrix_card = demo_card("Matrix Compute", "Push deterministic native compute from the UI without a client framework runtime.", matrix_form, "<div id=\"matrix-result\">" + matrix_html + "</div>")
+    let arena_card = demo_card("Compute Arena", "A playful demo of server-owned work comparison. The browser just asks; Turbo computes and decides.", arena_form, "<div id=\"arena-result\">" + arena_html + "</div>")
+
+    "<!doctype html>"
+    + "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>TurboServo — hosted TurboLang demo</title><style>" + css + "</style></head><body><div class=\"wrap\">"
+    + "<section class=\"hero\"><div class=\"chips\"><span class=\"chip\">TurboServo v0.7.6</span><span class=\"chip\">Turbo Lang v0.7.6</span><span class=\"chip\">HTML-first server demo</span><span class=\"chip\">Port " + to_str(port) + "</span></div><h1>A real TurboLang website where the server is the interactive engine.</h1><p>TurboServo now acts like a hosted reference app: one compiled server renders the landing page, owns live state in memory, serves JSON APIs, and streams fresh HTML fragments back to the browser without needing a client framework to be in charge.</p><p>This is not trying to imitate React. It shows where Turbo is uniquely compelling today: SSR HTML, native compute, server-owned concurrency, and a single binary that can power a browser-facing product surface.</p><div class=\"cta-row\"><a class=\"cta\" href=\"#demos\">Run the live demos</a><a class=\"cta secondary\" href=\"/api/info\">View /api/info</a><a class=\"cta secondary\" href=\"/api/server-state\">View /api/server-state</a></div></section>"
+    + "<section class=\"two-up\"><div id=\"live-status\">" + status_html + "</div><div id=\"memory-board\">" + memory_html + "</div></section>"
+    + "<section class=\"feature-grid\"><article class=\"feature\"><h3>SSR first</h3><p>The initial page is plain HTML from Turbo. No framework hydration is required for the critical experience.</p></article><article class=\"feature\"><h3>Reactive fragments</h3><p>The forms below ask the Turbo server for fresh HTML fragments and swap them into the page. The browser is just the transport layer.</p></article><article class=\"feature\"><h3>Server memory</h3><p>Live counters and the arena scoreboard stay in-process, proving Turbo can own state for a running app without adding a database.</p></article><article class=\"feature\"><h3>Native compute</h3><p>Search scoring, statistical analysis, matrix math, and pipeline transformations all run on the compiled server side.</p></article></section>"
+    + "<section id=\"demos\" class=\"demo-grid\">" + analyze_card + search_card + pipeline_card + matrix_card + arena_card + "</section>"
+    + "<section class=\"panel-card\"><div class=\"panel-head\"><h3>What this demo is proving</h3><p>TurboLang can already power a browser-facing server that renders full pages, returns fragments, tracks live state, and performs real compute on the origin. That makes it a strong fit for HTML-first tools, compute-heavy backends, internal products, and microservices where the server should stay in control.</p></div><div class=\"footer-links\"><a href=\"/health\">/health</a><a href=\"/api/info\">/api/info</a><a href=\"/api/server-state\">/api/server-state</a><a href=\"/transform\">POST /transform</a><a href=\"/search\">POST /search</a><a href=\"/matrix?size=12&op=trace\">/matrix?size=12&amp;op=trace</a></div></section>"
+    + "</div><script>" + js + "</script></body></html>"
+}
+
+fn server_state_json(total_requests: i64, page_views: i64, fragment_requests: i64, health_hits: i64, analyze_hits: i64, search_hits: i64, matrix_hits: i64, pipeline_hits: i64, transform_hits: i64, arena_runs: i64, active_jobs: i64, last_winner: i64) -> str {
+    "\{"
+    + "\"total_requests\":" + to_str(mutex_get(total_requests))
+    + ",\"page_views\":" + to_str(mutex_get(page_views))
+    + ",\"fragment_requests\":" + to_str(mutex_get(fragment_requests))
+    + ",\"health_hits\":" + to_str(mutex_get(health_hits))
+    + ",\"analyze_hits\":" + to_str(mutex_get(analyze_hits))
+    + ",\"search_hits\":" + to_str(mutex_get(search_hits))
+    + ",\"matrix_hits\":" + to_str(mutex_get(matrix_hits))
+    + ",\"pipeline_hits\":" + to_str(mutex_get(pipeline_hits))
+    + ",\"transform_hits\":" + to_str(mutex_get(transform_hits))
+    + ",\"arena_runs\":" + to_str(mutex_get(arena_runs))
+    + ",\"active_jobs\":" + to_str(mutex_get(active_jobs))
+    + ",\"last_winner\":\"" + winner_label(mutex_get(last_winner)) + "\"\}"
+}
+
+fn main() {
+    let port = configured_port(3001)
+    let app = create(port)
+
+    // In-memory state for the hosted demo.
+    let total_requests = mutex(0)
+    let page_views = mutex(0)
+    let fragment_requests = mutex(0)
+    let health_hits = mutex(0)
+    let info_hits = mutex(0)
+    let analyze_hits = mutex(0)
+    let search_hits = mutex(0)
+    let matrix_hits = mutex(0)
+    let pipeline_hits = mutex(0)
+    let transform_hits = mutex(0)
+    let arena_runs = mutex(0)
+    let active_jobs = mutex(0)
+    let last_winner = mutex(0)
+
+    print("Initializing search database...")
+    let search_db = init_search_data()
+    print("Search database ready (1000 products loaded)")
+
+    get(app, "/", |req: str| -> str {
+        route_hit(total_requests, page_views)
+        let status_html = render_status_fragment(page_views, total_requests, fragment_requests, active_jobs)
+        let memory_html = render_memory_fragment(health_hits, analyze_hits, search_hits, matrix_hits, pipeline_hits, arena_runs, last_winner)
+        let analyze_html = render_empty_fragment("Statistical Analysis", "Submit a dataset and Turbo will return a fresh HTML fragment rendered by the server.")
+        let search_html = render_empty_fragment("In-memory Search", "Search a live dataset and inspect ranked results without pushing logic to the client.")
+        let pipeline_html = render_empty_fragment("Pipeline Builder", "Compose a chain of operations and inspect the output directly from the origin.")
+        let matrix_html = render_empty_fragment("Matrix Compute", "Run matrix work on the server and inspect the result body in-place.")
+        let arena_html = render_empty_fragment("Compute Arena", "Launch concurrent server jobs and let the fastest one win.")
+        html(200, build_page(port, status_html, memory_html, analyze_html, search_html, pipeline_html, matrix_html, arena_html))
+    })
+
+    get(app, "/favicon.ico", |req: str| -> str {
+        no_content()
+    })
+
+    get(app, "/health", |req: str| -> str {
+        route_hit(total_requests, health_hits)
+        json(200, "\{\"status\":\"ok\",\"server\":\"TurboServo Showcase\",\"version\":\"0.7.6\",\"runtime\":\"Turbo Lang 0.7.6\"\}")
+    })
+
+    get(app, "/api/info", |req: str| -> str {
+        route_hit(total_requests, info_hits)
+        json(200, "\{\"project\":\"TurboServo\",\"version\":\"0.7.6\",\"turbo\":\"0.7.6\",\"demo\":\"hosted-server-demo\",\"strengths\":[\"SSR HTML\",\"HTML fragments\",\"in-memory state\",\"native compute\",\"concurrent tasks\"],\"routes\":[\"/\",\"/health\",\"/api/info\",\"/api/server-state\",\"/fragment/status\",\"/fragment/memory\",\"/fragment/arena\",\"/transform\",\"/analyze\",\"/search\",\"/matrix\",\"/pipeline\"]\}")
+    })
+
+    get(app, "/api/server-state", |req: str| -> str {
+        increment(total_requests)
+        json(200, server_state_json(total_requests, page_views, fragment_requests, health_hits, analyze_hits, search_hits, matrix_hits, pipeline_hits, transform_hits, arena_runs, active_jobs, last_winner))
+    })
+
+    get(app, "/fragment/status", |req: str| -> str {
+        fragment_hit(total_requests, fragment_requests, page_views)
+        html(200, render_status_fragment(page_views, total_requests, fragment_requests, active_jobs))
+    })
+
+    get(app, "/fragment/memory", |req: str| -> str {
+        fragment_hit(total_requests, fragment_requests, info_hits)
+        html(200, render_memory_fragment(health_hits, analyze_hits, search_hits, matrix_hits, pipeline_hits, arena_runs, last_winner))
+    })
+
+    post(app, "/fragment/arena", |req: str| -> str {
+        fragment_hit(total_requests, fragment_requests, arena_runs)
+        set_counter(active_jobs, 1)
+
+        let stats_score = arena_job_stats()
+        let search_score = arena_job_search()
+        let loop_score = arena_job_loop()
+
+        let first = arena_first(stats_score, search_score, loop_score)
+        let second = arena_second(stats_score, search_score, loop_score)
+        let third = arena_third(stats_score, search_score, loop_score)
+        set_counter(active_jobs, 0)
+        set_counter(last_winner, first)
+
+        html(200, render_arena_fragment(first, second, third, stats_score, search_score, loop_score))
+    })
+
+    // Core JSON API showcase endpoints.
+    post(app, "/transform", |req: str| -> str {
+        route_hit(total_requests, transform_hits)
+        handle_transform(req)
+    })
+
+    post(app, "/analyze", |req: str| -> str {
+        route_hit(total_requests, analyze_hits)
+        handle_analyze(req)
+    })
+
+    post(app, "/search", |req: str| -> str {
+        route_hit(total_requests, search_hits)
+        handle_search(req, search_db)
+    })
+
+    get(app, "/matrix", |req: str| -> str {
+        route_hit(total_requests, matrix_hits)
+        handle_matrix(req)
+    })
+
+    post(app, "/pipeline", |req: str| -> str {
+        route_hit(total_requests, pipeline_hits)
+        handle_pipeline(req)
+    })
+
+    print("")
+    print("=== TurboServo Hosted Demo ===")
+    print("Server running on http://localhost:" + to_str(port))
+    print("")
+    print("Landing page:")
+    print("  GET  /                    — SSR Turbo landing page")
+    print("  GET  /fragment/status     — live status fragment")
+    print("  GET  /fragment/memory     — live memory-board fragment")
+    print("  POST /fragment/arena      — concurrent compute arena")
+    print("")
+    print("JSON APIs:")
+    print("  GET  /health")
+    print("  GET  /api/info")
+    print("  GET  /api/server-state")
+    print("  POST /transform")
+    print("  POST /analyze")
+    print("  POST /search")
+    print("  GET  /matrix?size=N&op=multiply")
+    print("  POST /pipeline")
+    print("")
+    print("Quick test:")
+    print("  open http://localhost:" + to_str(port) + "/")
+    print("  curl http://localhost:" + to_str(port) + "/api/server-state")
+    print("  curl -X POST http://localhost:" + to_str(port) + "/search -d 'query=premium&category=electronics&page=2&limit=5&min_price=50&max_price=300'")
+    print("")
+
+    listen(app)
+}

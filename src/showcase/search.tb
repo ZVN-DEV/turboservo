@@ -1,0 +1,248 @@
+import { body, form_i64, form_value, parse_i64 } from "../request"
+
+import { json, bad_request } from "../response"
+
+// TurboServo Showcase — Full-Text Search
+//
+// Loads an in-memory dataset of product records and performs
+// fuzzy text search with field filtering, sorting, and pagination.
+//
+// Used by: POST /search
+// Also:    GET /search/init (load dataset)
+
+// In-memory product database — populated at startup via init
+// Stored as parallel arrays for cache-friendly access
+
+fn init_search_data() -> i64 {
+    let db = hashmap()
+
+    // Pre-populate 1000 product records across categories
+    // Names stored as "name_N", categories as "cat_N", descriptions as "desc_N"
+    let categories = ["electronics", "books", "clothing", "home", "sports",
+    "toys", "food", "tools", "garden", "auto"]
+    let adjectives = ["premium", "basic", "ultra", "pro", "lite",
+    "classic", "modern", "vintage", "smart", "compact"]
+    let nouns = ["widget", "gadget", "device", "system", "module",
+    "unit", "pack", "set", "kit", "bundle"]
+
+    let mut idx = 0
+    for cat in categories {
+        for adj in adjectives {
+            for noun in nouns {
+                let name = adj + " " + noun
+                let desc = "A " + adj + " " + cat + " " + noun + " for everyday use"
+                let price = (idx * 7 + 13) % 500 + 10
+                let rating = (idx * 3 + 7) % 5 + 1
+
+                let key_name = "name_" + to_str(idx)
+                let key_cat = "cat_" + to_str(idx)
+                let key_desc = "desc_" + to_str(idx)
+                let key_price = "price_" + to_str(idx)
+                let key_rating = "rating_" + to_str(idx)
+
+                hashmap_set(db, key_name, name)
+                hashmap_set(db, key_cat, cat)
+                hashmap_set(db, key_desc, desc)
+                hashmap_set(db, key_price, to_str(price))
+                hashmap_set(db, key_rating, to_str(rating))
+
+                idx = idx + 1
+            }
+        }
+    }
+
+    // Store the count
+    hashmap_set(db, "_count", to_str(idx))
+    hashmap_set(db, "_ready", "true")
+
+    db
+}
+
+// Compute a simple relevance score: count of query term occurrences in name + description
+
+fn relevance_score(name: str, desc: str, query: str) -> i64 {
+    let mut score = 0
+    let name_lower = lower(name)
+    let desc_lower = lower(desc)
+    let query_lower = lower(query)
+
+    // Exact match in name = high score
+    if contains(name_lower, query_lower) {
+        score = score + 100
+    }
+
+    // Match in description = medium score
+    if contains(desc_lower, query_lower) {
+        score = score + 50
+    }
+
+    // Fuzzy: check each word of the query
+    let query_words = split(query_lower, " ")
+    for word in query_words {
+        if len(word) > 0 {
+            if contains(name_lower, word) {
+                score = score + 30
+            }
+            if contains(desc_lower, word) {
+                score = score + 10
+            }
+        }
+    }
+
+    // Starts-with bonus
+    if starts_with(name_lower, query_lower) {
+        score = score + 50
+    }
+
+    score
+}
+
+// Handle search request
+// Body format: "query=<term>&category=<cat>&min_price=<n>&max_price=<n>&page=<n>&limit=<n>"
+
+fn search_payload(payload: str, db: i64) -> str {
+    let query = form_value(payload, "query")
+    let cat_filter = form_value(payload, "category")
+    let min_price = form_i64(payload, "min_price", 0)
+    let max_price = form_i64(payload, "max_price", 99999)
+    let mut page = form_i64(payload, "page", 1)
+    let mut limit = form_i64(payload, "limit", 20)
+
+    if page <= 0 {
+        page = 1
+    }
+    if limit <= 0 {
+        limit = 20
+    }
+    if limit > 100 {
+        limit = 100
+    }
+
+    if len(query) == 0 {
+        return "\{\"error\":\"missing query parameter\"\}"
+    }
+
+    // Get total record count
+    let count_str = hashmap_get(db, "_count")
+    let mut total_records = 0
+    let count_chars = split(count_str, "")
+    for ch in count_chars {
+        if ch == "0" { total_records = total_records * 10 }
+        else if ch == "1" { total_records = total_records * 10 + 1 }
+        else if ch == "2" { total_records = total_records * 10 + 2 }
+        else if ch == "3" { total_records = total_records * 10 + 3 }
+        else if ch == "4" { total_records = total_records * 10 + 4 }
+        else if ch == "5" { total_records = total_records * 10 + 5 }
+        else if ch == "6" { total_records = total_records * 10 + 6 }
+        else if ch == "7" { total_records = total_records * 10 + 7 }
+        else if ch == "8" { total_records = total_records * 10 + 8 }
+        else if ch == "9" { total_records = total_records * 10 + 9 }
+    }
+
+    // Search through all records
+    // Store results as parallel arrays: scores, indices
+    let mut result_scores = [0]
+    let mut result_indices = [0]
+    let mut result_count = 0
+
+    for i in 0..total_records {
+        let name = hashmap_get(db, "name_" + to_str(i))
+        let cat = hashmap_get(db, "cat_" + to_str(i))
+        let desc = hashmap_get(db, "desc_" + to_str(i))
+        let price = hashmap_get(db, "price_" + to_str(i))
+        let price_i64 = parse_i64(price)
+
+        // Apply category filter
+        let mut passes_filter = true
+        if len(cat_filter) > 0 {
+            if cat != cat_filter {
+                passes_filter = false
+            }
+        }
+        if price_i64 < min_price {
+            passes_filter = false
+        }
+        if price_i64 > max_price {
+            passes_filter = false
+        }
+
+        if passes_filter {
+            let score = relevance_score(name, desc, query)
+            if score > 0 {
+                if result_count < len(result_scores) {
+                    result_scores[result_count] = score
+                    result_indices[result_count] = i
+                } else {
+                    result_scores = push(result_scores, score)
+                    result_indices = push(result_indices, i)
+                }
+                result_count = result_count + 1
+            }
+        }
+    }
+
+    // Sort results by score (descending) — bubble sort on parallel arrays
+    for i in 0..result_count {
+        for j in 0..(result_count - 1) {
+            if result_scores[j] < result_scores[j + 1] {
+                // Swap scores
+                let tmp_s = result_scores[j]
+                result_scores[j] = result_scores[j + 1]
+                result_scores[j + 1] = tmp_s
+                // Swap indices
+                let tmp_i = result_indices[j]
+                result_indices[j] = result_indices[j + 1]
+                result_indices[j + 1] = tmp_i
+            }
+        }
+    }
+
+    // Paginate
+    let start = (page - 1) * limit
+    let end = min(start + limit, result_count)
+
+    // Build results JSON array
+    let mut results_json = "["
+    let mut first = true
+    for i in start..end {
+        if i < result_count {
+            let idx = result_indices[i]
+            let name = hashmap_get(db, "name_" + to_str(idx))
+            let cat = hashmap_get(db, "cat_" + to_str(idx))
+            let price = hashmap_get(db, "price_" + to_str(idx))
+            let rating = hashmap_get(db, "rating_" + to_str(idx))
+            let score = result_scores[i]
+
+            if first {
+                first = false
+            } else {
+                results_json = results_json + ","
+            }
+            results_json = results_json + "\{\"name\":\"" + name
+            + "\",\"category\":\"" + cat
+            + "\",\"price\":" + price
+            + ",\"rating\":" + rating
+            + ",\"relevance\":" + to_str(score) + "\}"
+        }
+    }
+    results_json = results_json + "]"
+
+    let result = "\{\"query\":\"" + query
+    + "\",\"total_matches\":" + to_str(result_count)
+    + ",\"page\":" + to_str(page)
+    + ",\"limit\":" + to_str(limit)
+    + ",\"results\":" + results_json
+    + "\}"
+
+    result
+}
+
+fn handle_search(req: str, db: i64) -> str {
+    let payload = body(req)
+    let result = search_payload(payload, db)
+    if starts_with(result, "\{\"error\":") {
+        bad_request(result)
+    } else {
+        json(200, result)
+    }
+}

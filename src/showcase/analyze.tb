@@ -1,0 +1,219 @@
+import { body } from "../request"
+
+import { json, bad_request } from "../response"
+
+// TurboServo Showcase — Statistical Analysis
+//
+// Computes practical statistics on numerical datasets:
+// mean, median, stddev, percentiles, histogram, outliers
+//
+// Used by: POST /analyze
+// Body format: comma-separated integers, e.g. "1,2,3,4,5"
+
+// Integer square root (Newton's method)
+
+fn isqrt(n: i64) -> i64 {
+    if n <= 0 {
+        return 0
+    }
+    if n == 1 {
+        return 1
+    }
+    let mut x = n / 2
+    let mut y = (x + n / x) / 2
+    while y < x {
+        x = y
+        y = (x + n / x) / 2
+    }
+    x
+}
+
+// Parse integer from string character by character
+
+fn parse_int(s: str) -> i64 {
+    let mut val = 0
+    let mut negative = false
+    let chars = split(s, "")
+    let mut first = true
+    for ch in chars {
+        if first {
+            first = false
+            if ch == "-" {
+                negative = true
+            } else {
+                val = digit_to_int(ch, val)
+            }
+        } else {
+            val = digit_to_int(ch, val)
+        }
+    }
+    if negative {
+        0 - val
+    } else {
+        val
+    }
+}
+
+fn digit_to_int(ch: str, acc: i64) -> i64 {
+    if ch == "0" { acc * 10 }
+    else if ch == "1" { acc * 10 + 1 }
+    else if ch == "2" { acc * 10 + 2 }
+    else if ch == "3" { acc * 10 + 3 }
+    else if ch == "4" { acc * 10 + 4 }
+    else if ch == "5" { acc * 10 + 5 }
+    else if ch == "6" { acc * 10 + 6 }
+    else if ch == "7" { acc * 10 + 7 }
+    else if ch == "8" { acc * 10 + 8 }
+    else if ch == "9" { acc * 10 + 9 }
+    else { acc }
+}
+
+fn analyze_payload(payload: str) -> str {
+    let parts = split(payload, ",")
+    let n = len(parts)
+
+    if n == 0 {
+        return "\{\"error\":\"empty dataset\"\}"
+    }
+
+    // Parse numbers into array
+    let mut data = [0]
+    let mut data_idx = 0
+
+    for part in parts {
+        let trimmed = trim(part)
+        if len(trimmed) > 0 {
+            let val = parse_int(trimmed)
+            if data_idx < len(data) {
+                data[data_idx] = val
+            } else {
+                data = push(data, val)
+            }
+            data_idx = data_idx + 1
+        }
+    }
+
+    let count = data_idx
+    if count == 0 {
+        return "\{\"error\":\"no valid numbers\"\}"
+    }
+
+    // === Compute Statistics ===
+
+    // Sum and mean
+    let mut sum = 0
+    for i in 0..count {
+        sum = sum + data[i]
+    }
+    let mean = sum / count
+
+    // Min and Max
+    let mut min_val = data[0]
+    let mut max_val = data[0]
+    for i in 0..count {
+        if data[i] < min_val {
+            min_val = data[i]
+        }
+        if data[i] > max_val {
+            max_val = data[i]
+        }
+    }
+
+    // Variance and standard deviation (integer math)
+    let mut variance_sum = 0
+    for i in 0..count {
+        let diff = data[i] - mean
+        variance_sum = variance_sum + diff * diff
+    }
+    let variance = variance_sum / count
+    let stddev = isqrt(variance)
+
+    // Sort for median and percentiles (bubble sort - tight native loops)
+    for i in 0..count {
+        for j in 0..(count - 1) {
+            if data[j] > data[j + 1] {
+                let tmp = data[j]
+                data[j] = data[j + 1]
+                data[j + 1] = tmp
+            }
+        }
+    }
+
+    // Median
+    let median = data[count / 2]
+
+    // Percentiles
+    let p50 = data[count * 50 / 100]
+    let p95 = data[count * 95 / 100]
+    let p99 = data[count * 99 / 100]
+
+    // Histogram — 10 bins from min to max
+    let range = max_val - min_val
+    let mut bin_size = 1
+    if range > 0 {
+        bin_size = range / 10
+        if bin_size == 0 {
+            bin_size = 1
+        }
+    }
+
+    let mut bins = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    for i in 0..count {
+        let mut bin_idx = (data[i] - min_val) / bin_size
+        if bin_idx >= 10 {
+            bin_idx = 9
+        }
+        if bin_idx < 0 {
+            bin_idx = 0
+        }
+        bins[bin_idx] = bins[bin_idx] + 1
+    }
+
+    let mut hist_str = "["
+    for i in 0..10 {
+        if i > 0 {
+            hist_str = hist_str + ","
+        }
+        hist_str = hist_str + to_str(bins[i])
+    }
+    hist_str = hist_str + "]"
+
+    // Outlier detection — values beyond 2 * stddev from mean
+    let mut outlier_count = 0
+    let threshold = stddev * 2
+    for i in 0..count {
+        let diff = abs(data[i] - mean)
+        if diff > threshold {
+            outlier_count = outlier_count + 1
+        }
+    }
+
+    // Build response
+    let result = "\{\"count\":" + to_str(count)
+    + ",\"sum\":" + to_str(sum)
+    + ",\"mean\":" + to_str(mean)
+    + ",\"median\":" + to_str(median)
+    + ",\"min\":" + to_str(min_val)
+    + ",\"max\":" + to_str(max_val)
+    + ",\"range\":" + to_str(range)
+    + ",\"stddev\":" + to_str(stddev)
+    + ",\"variance\":" + to_str(variance)
+    + ",\"p50\":" + to_str(p50)
+    + ",\"p95\":" + to_str(p95)
+    + ",\"p99\":" + to_str(p99)
+    + ",\"histogram\":" + hist_str
+    + ",\"outliers\":" + to_str(outlier_count)
+    + "\}"
+
+    result
+}
+
+fn handle_analyze(req: str) -> str {
+    let payload = body(req)
+    let result = analyze_payload(payload)
+    if starts_with(result, "\{\"error\":") {
+        bad_request(result)
+    } else {
+        json(200, result)
+    }
+}

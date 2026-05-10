@@ -1,0 +1,360 @@
+import { body } from "../request"
+
+import { json, bad_request } from "../response"
+
+// TurboServo Showcase — Chained Data Processing Pipeline
+//
+// Accepts pipeline stage definitions and processes data through them:
+// filter -> map -> sort -> reduce -> group_by
+//
+// Demonstrates Turbo's closure and higher-order function performance.
+//
+// Used by: POST /pipeline
+
+// Process a pipeline on integer data
+// Body format: comma-separated integers on first line,
+//              then pipeline stages on subsequent lines:
+//              "filter:gt:50" — keep values > threshold
+//              "filter:lt:200" — keep values < threshold
+//              "filter:even" — keep even values
+//              "filter:odd" — keep odd values
+//              "map:double" — multiply by 2
+//              "map:square" — square each value
+//              "map:negate" — negate each value
+//              "map:add:N" — add N to each value
+//              "sort:asc" — sort ascending
+//              "sort:desc" — sort descending
+//              "reduce:sum" — sum all values
+//              "reduce:product" — multiply all values
+//              "reduce:min" — find minimum
+//              "reduce:max" — find maximum
+//              "unique" — remove duplicates
+//              "reverse" — reverse the array
+//              "take:N" — take first N elements
+
+fn pipeline_payload(payload: str) -> str {
+    let lines = split(payload, "\n")
+
+    if len(lines) == 0 {
+        return "\{\"error\":\"empty pipeline\"\}"
+    }
+
+    // Parse initial data from first line
+    let data_parts = split(lines[0], ",")
+    let mut data = [0]
+    let mut data_len = 0
+
+    for part in data_parts {
+        let trimmed = trim(part)
+        if len(trimmed) > 0 {
+            let val = parse_int_str(trimmed)
+            if data_len < len(data) {
+                data[data_len] = val
+            } else {
+                data = push(data, val)
+            }
+            data_len = data_len + 1
+        }
+    }
+
+    // Process each pipeline stage
+    let mut stages_json = "["
+    let mut stage_count = 0
+    let mut reduced_value = 0
+    let mut is_reduced = false
+
+    let mut line_idx = 0
+    for line in lines {
+        if line_idx > 0 {
+            let stage_def = trim(line)
+            if len(stage_def) > 0 {
+                let stage_parts = split(stage_def, ":")
+                let stage_type = stage_parts[0]
+
+                let before_count = data_len
+
+                if stage_type == "filter" {
+                    if len(stage_parts) >= 2 {
+                        let filter_type = stage_parts[1]
+                        if filter_type == "even" {
+                            let mut new_data = [0]
+                            let mut new_len = 0
+                            for i in 0..data_len {
+                                if data[i] % 2 == 0 {
+                                    if new_len < len(new_data) {
+                                        new_data[new_len] = data[i]
+                                    } else {
+                                        new_data = push(new_data, data[i])
+                                    }
+                                    new_len = new_len + 1
+                                }
+                            }
+                            data = new_data
+                            data_len = new_len
+                        } else if filter_type == "odd" {
+                            let mut new_data = [0]
+                            let mut new_len = 0
+                            for i in 0..data_len {
+                                if data[i] % 2 != 0 {
+                                    if new_len < len(new_data) {
+                                        new_data[new_len] = data[i]
+                                    } else {
+                                        new_data = push(new_data, data[i])
+                                    }
+                                    new_len = new_len + 1
+                                }
+                            }
+                            data = new_data
+                            data_len = new_len
+                        } else if filter_type == "gt" {
+                            if len(stage_parts) >= 3 {
+                                let threshold = parse_int_str(stage_parts[2])
+                                let mut new_data = [0]
+                                let mut new_len = 0
+                                for i in 0..data_len {
+                                    if data[i] > threshold {
+                                        if new_len < len(new_data) {
+                                            new_data[new_len] = data[i]
+                                        } else {
+                                            new_data = push(new_data, data[i])
+                                        }
+                                        new_len = new_len + 1
+                                    }
+                                }
+                                data = new_data
+                                data_len = new_len
+                            }
+                        } else if filter_type == "lt" {
+                            if len(stage_parts) >= 3 {
+                                let threshold = parse_int_str(stage_parts[2])
+                                let mut new_data = [0]
+                                let mut new_len = 0
+                                for i in 0..data_len {
+                                    if data[i] < threshold {
+                                        if new_len < len(new_data) {
+                                            new_data[new_len] = data[i]
+                                        } else {
+                                            new_data = push(new_data, data[i])
+                                        }
+                                        new_len = new_len + 1
+                                    }
+                                }
+                                data = new_data
+                                data_len = new_len
+                            }
+                        }
+                    }
+                } else if stage_type == "map" {
+                    if len(stage_parts) >= 2 {
+                        let map_type = stage_parts[1]
+                        if map_type == "double" {
+                            for i in 0..data_len {
+                                data[i] = data[i] * 2
+                            }
+                        } else if map_type == "square" {
+                            for i in 0..data_len {
+                                data[i] = data[i] * data[i]
+                            }
+                        } else if map_type == "negate" {
+                            for i in 0..data_len {
+                                data[i] = 0 - data[i]
+                            }
+                        } else if map_type == "add" {
+                            if len(stage_parts) >= 3 {
+                                let addend = parse_int_str(stage_parts[2])
+                                for i in 0..data_len {
+                                    data[i] = data[i] + addend
+                                }
+                            }
+                        }
+                    }
+                } else if stage_type == "sort" {
+                    if len(stage_parts) >= 2 {
+                        let sort_dir = stage_parts[1]
+                        // Bubble sort
+                        for i in 0..data_len {
+                            for j in 0..(data_len - 1) {
+                                if sort_dir == "asc" {
+                                    if data[j] > data[j + 1] {
+                                        let tmp = data[j]
+                                        data[j] = data[j + 1]
+                                        data[j + 1] = tmp
+                                    }
+                                } else {
+                                    if data[j] < data[j + 1] {
+                                        let tmp = data[j]
+                                        data[j] = data[j + 1]
+                                        data[j + 1] = tmp
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if stage_type == "reduce" {
+                    if len(stage_parts) >= 2 {
+                        let reduce_type = stage_parts[1]
+                        if reduce_type == "sum" {
+                            let mut s = 0
+                            for i in 0..data_len {
+                                s = s + data[i]
+                            }
+                            reduced_value = s
+                            is_reduced = true
+                        } else if reduce_type == "product" {
+                            if data_len > 0 {
+                                let mut product = 1
+                                for i in 0..data_len {
+                                    product = product * data[i]
+                                }
+                                reduced_value = product
+                                is_reduced = true
+                            }
+                        } else if reduce_type == "min" {
+                            if data_len > 0 {
+                                let mut m = data[0]
+                                for i in 1..data_len {
+                                    if data[i] < m {
+                                        m = data[i]
+                                    }
+                                }
+                                reduced_value = m
+                                is_reduced = true
+                            }
+                        } else if reduce_type == "max" {
+                            if data_len > 0 {
+                                let mut m = data[0]
+                                for i in 1..data_len {
+                                    if data[i] > m {
+                                        m = data[i]
+                                    }
+                                }
+                                reduced_value = m
+                                is_reduced = true
+                            }
+                        }
+                    }
+                } else if stage_type == "unique" {
+                    let seen = hashmap()
+                    let mut new_data = [0]
+                    let mut new_len = 0
+                    for i in 0..data_len {
+                        let key = to_str(data[i])
+                        if hashmap_has(seen, key) == false {
+                            hashmap_set(seen, key, "1")
+                            if new_len < len(new_data) {
+                                new_data[new_len] = data[i]
+                            } else {
+                                new_data = push(new_data, data[i])
+                            }
+                            new_len = new_len + 1
+                        }
+                    }
+                    data = new_data
+                    data_len = new_len
+                } else if stage_type == "reverse" {
+                    let mut i = 0
+                    let mut j = data_len - 1
+                    while i < j {
+                        let tmp = data[i]
+                        data[i] = data[j]
+                        data[j] = tmp
+                        i = i + 1
+                        j = j - 1
+                    }
+                } else if stage_type == "take" {
+                    if len(stage_parts) >= 2 {
+                        let take_n = parse_int_str(stage_parts[1])
+                        if take_n < data_len {
+                            data_len = take_n
+                        }
+                    }
+                }
+
+                // Record stage info
+                if stage_count > 0 {
+                    stages_json = stages_json + ","
+                }
+                stages_json = stages_json + "\{\"stage\":\"" + stage_def
+                + "\",\"input_count\":" + to_str(before_count)
+                + ",\"output_count\":" + to_str(data_len) + "\}"
+                stage_count = stage_count + 1
+            }
+        }
+        line_idx = line_idx + 1
+    }
+    stages_json = stages_json + "]"
+
+    // Build output data array
+    let mut output_json = "["
+    let output_limit = min(data_len, 100)
+    for i in 0..output_limit {
+        if i > 0 {
+            output_json = output_json + ","
+        }
+        output_json = output_json + to_str(data[i])
+    }
+    output_json = output_json + "]"
+
+    let mut result = "\{\"stages\":" + stages_json
+    + ",\"stage_count\":" + to_str(stage_count)
+    + ",\"output_count\":" + to_str(data_len)
+
+    if is_reduced {
+        result = result + ",\"reduced_value\":" + to_str(reduced_value)
+    }
+
+    result = result + ",\"output\":" + output_json + "\}"
+
+    result
+}
+
+fn handle_pipeline(req: str) -> str {
+    let payload = body(req)
+    let result = pipeline_payload(payload)
+    if starts_with(result, "\{\"error\":") {
+        bad_request(result)
+    } else {
+        json(200, result)
+    }
+}
+
+// Helper: parse integer from string
+
+fn parse_int_str(s: str) -> i64 {
+    let mut val = 0
+    let mut negative = false
+    let chars = split(s, "")
+    let mut first = true
+    for ch in chars {
+        if first {
+            if ch == "-" {
+                negative = true
+                first = false
+            } else {
+                first = false
+                val = digit_val(ch, val)
+            }
+        } else {
+            val = digit_val(ch, val)
+        }
+    }
+    if negative {
+        0 - val
+    } else {
+        val
+    }
+}
+
+fn digit_val(ch: str, acc: i64) -> i64 {
+    if ch == "0" { acc * 10 }
+    else if ch == "1" { acc * 10 + 1 }
+    else if ch == "2" { acc * 10 + 2 }
+    else if ch == "3" { acc * 10 + 3 }
+    else if ch == "4" { acc * 10 + 4 }
+    else if ch == "5" { acc * 10 + 5 }
+    else if ch == "6" { acc * 10 + 6 }
+    else if ch == "7" { acc * 10 + 7 }
+    else if ch == "8" { acc * 10 + 8 }
+    else if ch == "9" { acc * 10 + 9 }
+    else { acc }
+}

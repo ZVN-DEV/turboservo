@@ -1,0 +1,189 @@
+import { query_i64, query_or } from "../request"
+
+import { json, bad_request } from "../response"
+
+// TurboServo Showcase — Matrix Computation
+//
+// Performs matrix operations using tight nested loops.
+// Demonstrates Turbo's native loop performance vs interpreted languages.
+//
+// Used by: GET /matrix?size=N&op=multiply|transpose
+
+// Matrix multiply: C = A * B where A is NxN and B is NxN
+// Matrices stored as flat arrays (row-major)
+
+fn matrix_multiply(a: [i64], b: [i64], n: i64) -> [i64] {
+    // Initialize result matrix with zeros
+    let total = n * n
+    let mut c = [0]
+    for i in 1..total {
+        c = push(c, 0)
+    }
+
+    // Triple nested loop — the classic O(n^3) matmul
+    for i in 0..n {
+        for j in 0..n {
+            let mut sum = 0
+            for k in 0..n {
+                sum = sum + a[i * n + k] * b[k * n + j]
+            }
+            c[i * n + j] = sum
+        }
+    }
+
+    c
+}
+
+// Matrix transpose
+
+fn matrix_transpose(a: [i64], n: i64) -> [i64] {
+    let total = n * n
+    let mut result = [0]
+    for i in 1..total {
+        result = push(result, 0)
+    }
+
+    for i in 0..n {
+        for j in 0..n {
+            result[j * n + i] = a[i * n + j]
+        }
+    }
+
+    result
+}
+
+// Compute trace (sum of diagonal)
+
+fn matrix_trace(a: [i64], n: i64) -> i64 {
+    let mut sum = 0
+    for i in 0..n {
+        sum = sum + a[i * n + i]
+    }
+    sum
+}
+
+// Generate a deterministic test matrix
+
+fn generate_matrix(n: i64, seed: i64) -> [i64] {
+    let total = n * n
+    let mut m = [0]
+    for i in 1..total {
+        m = push(m, 0)
+    }
+
+    for i in 0..total {
+        m[i] = (i * seed + 7) % 100
+    }
+
+    m
+}
+
+// Format matrix as JSON array of arrays
+
+fn matrix_to_json(m: [i64], n: i64) -> str {
+    let mut result = "["
+    for i in 0..n {
+        if i > 0 {
+            result = result + ","
+        }
+        result = result + "["
+        for j in 0..n {
+            if j > 0 {
+                result = result + ","
+            }
+            result = result + to_str(m[i * n + j])
+        }
+        result = result + "]"
+    }
+    result = result + "]"
+    result
+}
+
+// Handle matrix computation request
+// Query params: size=N (matrix dimension), op=multiply|transpose|trace
+
+fn matrix_payload(requested_size: i64, op: str) -> str {
+    let mut size = 10
+    if requested_size > 0 {
+        size = requested_size
+    }
+
+    // Cap at 200 to prevent excessive memory/time
+    if size > 200 {
+        size = 200
+    }
+
+    // Default op to multiply
+    let mut operation = "multiply"
+    if len(op) > 0 {
+        operation = op
+    }
+
+    // Generate test matrices
+    let a = generate_matrix(size, 3)
+    let b = generate_matrix(size, 7)
+
+    if operation == "multiply" {
+        let c = matrix_multiply(a, b, size)
+        let trace = matrix_trace(c, size)
+
+        // For large matrices, only return metadata + trace (not full matrix)
+        if size > 20 {
+            let result = "\{\"operation\":\"multiply\""
+            + ",\"size\":" + to_str(size)
+            + ",\"trace\":" + to_str(trace)
+            + ",\"elements\":" + to_str(size * size)
+            + "\}"
+            result
+        } else {
+            let matrix_json = matrix_to_json(c, size)
+            let result = "\{\"operation\":\"multiply\""
+            + ",\"size\":" + to_str(size)
+            + ",\"trace\":" + to_str(trace)
+            + ",\"result\":" + matrix_json
+            + "\}"
+            result
+        }
+    } else if operation == "transpose" {
+        let t = matrix_transpose(a, size)
+        let trace = matrix_trace(t, size)
+
+        if size > 20 {
+            let result = "\{\"operation\":\"transpose\""
+            + ",\"size\":" + to_str(size)
+            + ",\"trace\":" + to_str(trace)
+            + "\}"
+            result
+        } else {
+            let matrix_json = matrix_to_json(t, size)
+            let result = "\{\"operation\":\"transpose\""
+            + ",\"size\":" + to_str(size)
+            + ",\"trace\":" + to_str(trace)
+            + ",\"result\":" + matrix_json
+            + "\}"
+            result
+        }
+    } else if operation == "trace" {
+        let trace_a = matrix_trace(a, size)
+        let trace_b = matrix_trace(b, size)
+        let result = "\{\"operation\":\"trace\""
+        + ",\"size\":" + to_str(size)
+        + ",\"trace_a\":" + to_str(trace_a)
+        + ",\"trace_b\":" + to_str(trace_b)
+        + "\}"
+        result
+    } else {
+        "\{\"error\":\"unknown operation: " + operation + "\"\}"
+    }
+}
+
+fn handle_matrix(req: str) -> str {
+    let requested_size = query_i64(req, "size", 10)
+    let op = query_or(req, "op", "multiply")
+    let result = matrix_payload(requested_size, op)
+    if starts_with(result, "\{\"error\":") {
+        bad_request(result)
+    } else {
+        json(200, result)
+    }
+}

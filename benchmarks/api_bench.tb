@@ -2,8 +2,10 @@
 // Identical workload to compare against Hono, Go, Actix
 
 import { create, get, post, listen } from "../src/servo"
+
 import { json, not_found } from "../src/response"
-import { body, query } from "../src/request"
+
+import { body, header, parse_i64, query } from "../src/request"
 
 struct User {
     id: i64,
@@ -11,8 +13,23 @@ struct User {
     email: str,
 }
 
+fn configured_port(fallback: i64) -> i64 {
+    let raw = trim(env_get("PORT"))
+    if len(raw) == 0 {
+        return fallback
+    }
+
+    let parsed = parse_i64(raw)
+    if parsed > 0 {
+        parsed
+    } else {
+        fallback
+    }
+}
+
 fn main() {
-    let app = create(3000)
+    let port = configured_port(3000)
+    let app = create(port)
 
     // Endpoint 1: Simple JSON response (baseline throughput)
     get(app, "/json", |req: str| -> str {
@@ -41,12 +58,12 @@ fn main() {
 
     // Endpoint 4: Headers inspection
     get(app, "/headers", |req: str| -> str {
-        let ua = request_header(req, "User-Agent")
-        let accept = request_header(req, "Accept")
+        let ua = header(req, "User-Agent")
+        let _accept = header(req, "Accept")
         json(200, json_stringify("user_agent", ua))
     })
 
-    print("Benchmark server running on http://localhost:3000")
+    print("Benchmark server running on http://localhost:" + to_str(port))
     print("Endpoints:")
     print("  GET  /json     - simple JSON response")
     print("  POST /echo     - echo posted body")

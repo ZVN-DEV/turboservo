@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── TurboServo ────────────────────────────────────────────────────────
 echo "--- Starting TurboServo (port 3000) ---"
-turbolang run "$SCRIPT_DIR/api_bench.tb" &
+PORT=3000 turbolang run "$SCRIPT_DIR/api_bench.tb" &
 TURBO_PID=$!
 sleep 2
 

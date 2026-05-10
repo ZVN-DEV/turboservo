@@ -9,9 +9,11 @@
 
 // Match a pattern against a path, return params as "key=val&key2=val2" string
 // Returns empty string if no match
+
 fn match_path(pattern: str, path: str) -> str {
+    let clean_path = strip_query_string(path)
     let pat_parts = split(pattern, "/")
-    let path_parts = split(path, "/")
+    let path_parts = split(clean_path, "/")
 
     if len(pat_parts) != len(path_parts) {
         return ""
@@ -19,13 +21,12 @@ fn match_path(pattern: str, path: str) -> str {
 
     let mut params = ""
     let mut i = 0
-    let matched = true
 
     for pat_part in pat_parts {
         let path_part = path_parts[i]
         if starts_with(pat_part, ":") {
-            // This is a parameter — extract it
-            let key = str_slice(pat_part, 1, len(pat_part))
+            // This is a parameter — strip the leading ":" to get the key name
+            let key = replace(pat_part, ":", "")
             if len(params) > 0 {
                 params = params + "&"
             }
@@ -43,6 +44,7 @@ fn match_path(pattern: str, path: str) -> str {
 }
 
 // Extract a named parameter from the params string
+
 fn param(params: str, key: str) -> str {
     if len(params) == 0 {
         return ""
@@ -57,4 +59,13 @@ fn param(params: str, key: str) -> str {
         }
     }
     ""
+}
+
+fn strip_query_string(path: str) -> str {
+    let parts = split(path, "?")
+    if len(parts) > 0 {
+        parts[0]
+    } else {
+        path
+    }
 }

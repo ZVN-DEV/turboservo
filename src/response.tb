@@ -1,16 +1,15 @@
 // TurboServo — Response helpers
 
 fn json(status: i64, body: str) -> str {
-    respond(status, body)
+    respond_json(status, body)
 }
 
 fn text(status: i64, body: str) -> str {
-    // Return without the colon-delimited format so it gets text/plain Content-Type
-    respond(status, body)
+    respond_text(status, body)
 }
 
 fn html(status: i64, body: str) -> str {
-    respond(status, body)
+    respond_html(status, body)
 }
 
 fn redirect(url: str) -> str {
@@ -26,5 +25,17 @@ fn bad_request(msg: str) -> str {
 }
 
 fn internal_error(msg: str) -> str {
-    respond(500, msg)
+    respond_text(500, msg)
+}
+
+fn created_json(body: str) -> str {
+    respond_json(201, body)
+}
+
+fn accepted_json(body: str) -> str {
+    respond_json(202, body)
+}
+
+fn no_content() -> str {
+    respond_text(204, "")
 }
