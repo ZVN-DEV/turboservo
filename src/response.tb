@@ -39,3 +39,19 @@ fn accepted_json(body: str) -> str {
 fn no_content() -> str {
     respond_text(204, "")
 }
+
+fn cors_preflight(allowed_origins: str, allowed_methods: str) -> str {
+    respond_text(204, "Access-Control-Allow-Origin: " + allowed_origins + "\r\nAccess-Control-Allow-Methods: " + allowed_methods + "\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nAccess-Control-Max-Age: 86400")
+}
+
+fn method_not_allowed() -> str {
+    respond_text(405, "Method Not Allowed")
+}
+
+fn unauthorized(msg: str) -> str {
+    respond_json(401, json_stringify("error", msg))
+}
+
+fn forbidden(msg: str) -> str {
+    respond_json(403, json_stringify("error", msg))
+}
