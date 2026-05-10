@@ -1,7 +1,7 @@
 // TurboServo — Core framework
 //
 // Usage:
-//   import { create, get, post, listen } from "./src/servo"
+//   import { create, create_public, get, post, listen } from "./src/servo"
 //   import { json } from "./src/response"
 //
 //   fn main() {
@@ -12,6 +12,10 @@
 
 fn create(port: i64) -> i64 {
     http_server(port)
+}
+
+fn create_public(port: i64) -> i64 {
+    http_server_public(port)
 }
 
 fn get(app: i64, path: str, handler: fn(str) -> str) {
@@ -28,6 +32,14 @@ fn put(app: i64, path: str, handler: fn(str) -> str) {
 
 fn delete(app: i64, path: str, handler: fn(str) -> str) {
     route(app, "DELETE", path, handler)
+}
+
+fn patch(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "PATCH", path, handler)
+}
+
+fn options(app: i64, path: str, handler: fn(str) -> str) {
+    route(app, "OPTIONS", path, handler)
 }
 
 fn listen(app: i64) {
