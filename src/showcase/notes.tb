@@ -1,0 +1,173 @@
+import { body, parse_i64, form_value, query } from "../request"
+
+import { json, created_json, no_content, bad_request, not_found } from "../response"
+
+// TurboServo Showcase — CRUD Notes API with File-Backed Persistence
+//
+// Demonstrates a real-world pattern: stateful REST API with disk persistence.
+// Notes are stored as pipe-delimited lines in /tmp/turbo_notes.dat
+//
+// Endpoints:
+//   GET    /notes           — list all notes (JSON array)
+//   GET    /notes?id=N      — get single note by ID
+//   POST   /notes           — create note (body: title=X&content=Y)
+//   DELETE /notes?id=N      — delete note by ID
+//
+// Storage format: id|title|content|timestamp (one per line)
+
+fn notes_file() -> str {
+    "/tmp/turbo_notes.dat"
+}
+
+fn load_notes() -> str {
+    let result = try_read_file(notes_file())
+    match result {
+        ok(content) => content
+        err(_) => ""
+    }
+}
+
+fn save_notes(content: str) {
+    let result = try_write_file(notes_file(), content)
+    match result {
+        ok(_) => {}
+        err(_) => {}
+    }
+}
+
+fn next_id(data: str) -> i64 {
+    if len(data) == 0 {
+        return 1
+    }
+    let lines = split(data, "\n")
+    let mut max_id = 0
+    for line in lines {
+        if len(line) > 0 {
+            let fields = split(line, "|")
+            if len(fields) >= 1 {
+                let id = parse_i64(fields[0])
+                if id > max_id {
+                    max_id = id
+                }
+            }
+        }
+    }
+    max_id + 1
+}
+
+fn handle_list_notes(req: str) -> str {
+    let data = load_notes()
+    if len(data) == 0 {
+        return json(200, "\{\"notes\":[],\"count\":0\}")
+    }
+
+    let lines = split(data, "\n")
+    let mut result = "\{\"notes\":["
+    let mut count = 0
+
+    for line in lines {
+        if len(line) > 0 {
+            let fields = split(line, "|")
+            if len(fields) >= 4 {
+                if count > 0 {
+                    result = result + ","
+                }
+                let id = fields[0]
+                let title = fields[1]
+                let content = fields[2]
+                let ts = fields[3]
+                result = result + "\{\"id\":" + id + ",\"title\":\"" + title + "\",\"content\":\"" + content + "\",\"created\":\"" + ts + "\"\}"
+                count = count + 1
+            }
+        }
+    }
+
+    result = result + "],\"count\":" + to_str(count) + "\}"
+    json(200, result)
+}
+
+fn handle_create_note(req: str) -> str {
+    let payload = body(req)
+    let title = form_value(payload, "title")
+    let content = form_value(payload, "content")
+
+    if len(title) == 0 {
+        return bad_request("\{\"error\":\"title is required\"\}")
+    }
+
+    let data = load_notes()
+    let id = next_id(data)
+    let line = to_str(id) + "|" + title + "|" + content + "|" + to_str(id)
+
+    let new_data = if len(data) > 0 {
+        data + "\n" + line
+    } else {
+        line
+    }
+
+    save_notes(new_data)
+
+    created_json("\{\"id\":" + to_str(id) + ",\"title\":\"" + title + "\",\"content\":\"" + content + "\",\"created\":\"" + to_str(id) + "\"\}")
+}
+
+fn handle_get_note(req: str) -> str {
+    let id_str = query(req, "id")
+    let target_id = parse_i64(id_str)
+    if target_id == 0 {
+        return handle_list_notes(req)
+    }
+
+    let data = load_notes()
+    let lines = split(data, "\n")
+
+    for line in lines {
+        if len(line) > 0 {
+            let fields = split(line, "|")
+            if len(fields) >= 4 {
+                let id = parse_i64(fields[0])
+                if id == target_id {
+                    return json(200, "\{\"id\":" + fields[0] + ",\"title\":\"" + fields[1] + "\",\"content\":\"" + fields[2] + "\",\"created\":\"" + fields[3] + "\"\}")
+                }
+            }
+        }
+    }
+
+    not_found()
+}
+
+fn handle_delete_note(req: str) -> str {
+    let id_str = query(req, "id")
+    let target_id = parse_i64(id_str)
+    if target_id == 0 {
+        return bad_request("\{\"error\":\"id query param required\"\}")
+    }
+
+    let data = load_notes()
+    let lines = split(data, "\n")
+    let mut new_data = ""
+    let mut found = false
+
+    for line in lines {
+        if len(line) > 0 {
+            let fields = split(line, "|")
+            if len(fields) >= 1 {
+                let id = parse_i64(fields[0])
+                if id == target_id {
+                    found = true
+                } else {
+                    if len(new_data) > 0 {
+                        new_data = new_data + "\n"
+                    }
+                    new_data = new_data + line
+                }
+            }
+        }
+    }
+
+    if !found {
+        return not_found()
+    }
+
+    save_notes(new_data)
+    no_content()
+}

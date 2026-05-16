@@ -1,4 +1,4 @@
-import { body } from "../request"
+import { body, parse_i64 } from "../request"
 
 import { json, bad_request } from "../response"
 
@@ -47,7 +47,7 @@ fn pipeline_payload(payload: str) -> str {
     for part in data_parts {
         let trimmed = trim(part)
         if len(trimmed) > 0 {
-            let val = parse_int_str(trimmed)
+            let val = parse_i64(trimmed)
             if data_len < len(data) {
                 data[data_len] = val
             } else {
@@ -108,7 +108,7 @@ fn pipeline_payload(payload: str) -> str {
                             data_len = new_len
                         } else if filter_type == "gt" {
                             if len(stage_parts) >= 3 {
-                                let threshold = parse_int_str(stage_parts[2])
+                                let threshold = parse_i64(stage_parts[2])
                                 let mut new_data = [0]
                                 let mut new_len = 0
                                 for i in 0..data_len {
@@ -126,7 +126,7 @@ fn pipeline_payload(payload: str) -> str {
                             }
                         } else if filter_type == "lt" {
                             if len(stage_parts) >= 3 {
-                                let threshold = parse_int_str(stage_parts[2])
+                                let threshold = parse_i64(stage_parts[2])
                                 let mut new_data = [0]
                                 let mut new_len = 0
                                 for i in 0..data_len {
@@ -161,7 +161,7 @@ fn pipeline_payload(payload: str) -> str {
                             }
                         } else if map_type == "add" {
                             if len(stage_parts) >= 3 {
-                                let addend = parse_int_str(stage_parts[2])
+                                let addend = parse_i64(stage_parts[2])
                                 for i in 0..data_len {
                                     data[i] = data[i] + addend
                                 }
@@ -263,7 +263,7 @@ fn pipeline_payload(payload: str) -> str {
                     }
                 } else if stage_type == "take" {
                     if len(stage_parts) >= 2 {
-                        let take_n = parse_int_str(stage_parts[1])
+                        let take_n = parse_i64(stage_parts[1])
                         if take_n < data_len {
                             data_len = take_n
                         }
@@ -318,12 +318,3 @@ fn handle_pipeline(req: str) -> str {
     }
 }
 
-// Helper: parse integer from string (delegates to Turbo Lang 0.9.0 str_to_int builtin)
-
-fn parse_int_str(s: str) -> i64 {
-    let result = str_to_int(trim(s))
-    match result {
-        ok(val) => val
-        err(_) => 0
-    }
-}

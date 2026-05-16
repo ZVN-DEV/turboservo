@@ -1,4 +1,4 @@
-import { body } from "../request"
+import { body, parse_i64 } from "../request"
 
 import { json, bad_request } from "../response"
 
@@ -28,15 +28,6 @@ fn isqrt(n: i64) -> i64 {
     x
 }
 
-// Parse integer from string (delegates to Turbo Lang 0.9.0 str_to_int builtin)
-
-fn parse_int(s: str) -> i64 {
-    let result = str_to_int(trim(s))
-    match result {
-        ok(val) => val
-        err(_) => 0
-    }
-}
 
 fn analyze_payload(payload: str) -> str {
     let parts = split(payload, ",")
@@ -53,7 +44,7 @@ fn analyze_payload(payload: str) -> str {
     for part in parts {
         let trimmed = trim(part)
         if len(trimmed) > 0 {
-            let val = parse_int(trimmed)
+            let val = parse_i64(trimmed)
             if data_idx < len(data) {
                 data[data_idx] = val
             } else {

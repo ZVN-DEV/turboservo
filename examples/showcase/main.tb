@@ -8,7 +8,7 @@
 //   - JSON APIs and compute endpoints
 //   - concurrent compute arena demo
 
-import { create, get, post, listen } from "../../src/servo"
+import { create, get, post, delete, listen } from "../../src/servo"
 
 import { html, json, no_content } from "../../src/response"
 
@@ -23,6 +23,8 @@ import { init_search_data, handle_search, relevance_score } from "../../src/show
 import { handle_matrix } from "../../src/showcase/matrix"
 
 import { handle_pipeline } from "../../src/showcase/pipeline"
+
+import { handle_list_notes, handle_create_note, handle_get_note, handle_delete_note } from "../../src/showcase/notes"
 
 fn configured_port(fallback: i64) -> i64 {
     let raw = trim(env_get("PORT"))
@@ -361,7 +363,7 @@ fn main() {
 
     get(app, "/api/info", |req: str| -> str {
         route_hit(total_requests, info_hits)
-        json(200, "\{\"project\":\"TurboServo\",\"version\":\"0.9.0\",\"turbo\":\"0.9.0\",\"demo\":\"hosted-server-demo\",\"strengths\":[\"SSR HTML\",\"HTML fragments\",\"in-memory state\",\"native compute\",\"concurrent tasks\"],\"routes\":[\"/\",\"/health\",\"/api/info\",\"/api/server-state\",\"/fragment/status\",\"/fragment/memory\",\"/fragment/arena\",\"/transform\",\"/analyze\",\"/search\",\"/matrix\",\"/pipeline\"]\}")
+        json(200, "\{\"project\":\"TurboServo\",\"version\":\"0.9.0\",\"turbo\":\"0.9.0\",\"demo\":\"hosted-server-demo\",\"strengths\":[\"SSR HTML\",\"HTML fragments\",\"in-memory state\",\"native compute\",\"concurrent tasks\",\"file persistence\"],\"routes\":[\"/\",\"/health\",\"/api/info\",\"/api/server-state\",\"/fragment/status\",\"/fragment/memory\",\"/fragment/arena\",\"/transform\",\"/analyze\",\"/search\",\"/matrix\",\"/pipeline\",\"/notes\"]\}")
     })
 
     get(app, "/api/server-state", |req: str| -> str {
@@ -422,6 +424,22 @@ fn main() {
         handle_pipeline(req)
     })
 
+    // CRUD Notes API — file-backed persistence demo
+    get(app, "/notes", |req: str| -> str {
+        increment(total_requests)
+        handle_get_note(req)
+    })
+
+    post(app, "/notes", |req: str| -> str {
+        increment(total_requests)
+        handle_create_note(req)
+    })
+
+    delete(app, "/notes", |req: str| -> str {
+        increment(total_requests)
+        handle_delete_note(req)
+    })
+
     print("")
     print("=== TurboServo Hosted Demo ===")
     print("Server running on http://localhost:" + to_str(port))
@@ -441,6 +459,12 @@ fn main() {
     print("  POST /search")
     print("  GET  /matrix?size=N&op=multiply")
     print("  POST /pipeline")
+    print("")
+    print("CRUD API:")
+    print("  GET    /notes              — list all notes")
+    print("  GET    /notes?id=N         — get note by ID")
+    print("  POST   /notes              — create (body: title=X&content=Y)")
+    print("  DELETE /notes?id=N         — delete note")
     print("")
     print("Quick test:")
     print("  open http://localhost:" + to_str(port) + "/")
