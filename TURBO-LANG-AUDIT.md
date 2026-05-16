@@ -1,6 +1,50 @@
-# TurboServo audit against Turbo Lang 0.8.2
+# TurboServo audit against Turbo Lang 0.9.0
 
-This project is now aligned to the latest shipped Turbo Lang release available at the time of this pass: **Turbo Lang 0.8.2** (released **May 2026**).
+This project is now aligned to the latest shipped Turbo Lang release available at the time of this pass: **Turbo Lang 0.9.0** (released **May 2026**).
+
+## What changed in this repo (v0.9.0 upgrade)
+
+- Bumped `turbo.toml` version from `0.8.2` to `0.9.0`.
+- Updated all version strings in the showcase demo (health endpoint, `/api/info`, hero chips) to reflect v0.9.0.
+- **Replaced all hand-rolled integer parsers with `str_to_int` builtin**: removed ~200 lines of manual digit-by-digit parsing across `request.tb`, `transform.tb`, `analyze.tb`, `pipeline.tb`, and `search.tb`. Each file now delegates to `str_to_int(trim(s))` with a `match` unwrap that falls back to `0` on parse failure, preserving the original behavior.
+- No API changes — `parse_i64()`, `transform_parse_int()`, `parse_int()`, and `parse_int_str()` all remain as thin wrappers for backward compatibility.
+
+## What Turbo Lang 0.9.0 added that TurboServo benefits from
+
+### Stdlib expansion — 74 new builtins
+
+Turbo Lang 0.9.0 is a batteries-included release that added 74 new builtins across system essentials, math, string parsing, filesystem, collections, and date/time categories. The most impactful for TurboServo:
+
+- **`str_to_int` / `str_to_float`** — proper string-to-number parsing that returns `Result<i64, str>` / `Result<f64, str>`. This directly replaced all hand-rolled digit parsers in TurboServo, cutting ~200 lines of boilerplate across five files.
+- **`substring`, `pad_left`, `pad_right`** — string slicing and formatting primitives useful for response formatting and log output.
+- **`env_get` / `env_set`** — already used in TurboServo's `configured_port()` for reading the `PORT` env var; now officially part of the stdlib surface.
+- **`math_pow`, `math_log`, `math_sqrt`** (float math) — available for future compute endpoints.
+- **`hashmap_keys`, `hashmap_values`, `hashmap_len`** — collection introspection builtins that complement TurboServo's existing hashmap usage in search and transform modules.
+- **`date_now`, `time_now`** — timestamp primitives available for request logging and response headers.
+- **Base conversion (`int_to_hex`, `int_to_bin`, `int_to_oct`)** — useful for debug endpoints and diagnostic output.
+
+### Compiler improvements
+
+- All existing TurboServo source files compiled without modification on the v0.9.0 compiler — no breaking changes or keyword conflicts.
+
+## Gaps still remaining (carried forward from v0.8.2 audit)
+
+These are repo-level observations intended to improve Turbo itself, not blockers for TurboServo:
+
+1. **No first-class request body / form decoding helpers in stdlib** — form parsing for `key=value&...` payloads is still hand-rolled in `request.tb`.
+2. **No ergonomic JSON builder** — response payloads are still hand-assembled strings.
+3. **Routing still feels low-level** — path-param ergonomics are helper-driven rather than framework-integrated.
+4. **Redirects still need better primitives** — no first-class redirect or arbitrary-header API for framework authors.
+5. **Server-handler concurrency patterns need clearer documentation** — the safest path remains synchronous handlers.
+
+---
+
+## Previous audit: v0.8.2
+
+<details>
+<summary>v0.8.2 audit (click to expand)</summary>
+
+### What changed in this repo (v0.8.2 upgrade)
 
 ## What changed in this repo (v0.8.2 upgrade)
 
@@ -71,3 +115,5 @@ These are repo-level observations intended to improve Turbo itself, not blockers
 - Adopt `try_read_file` / `try_write_file` in stdlib HTTP examples to model the safe I/O pattern
 - Publish an official "testing HTTP servers" example alongside `web-dashboard`
 - Document supported async/concurrency patterns for HTTP handlers explicitly
+
+</details>
